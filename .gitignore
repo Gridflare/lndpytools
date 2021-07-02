@@ -1,0 +1,8 @@
+*.cert
+*.macaroon
+*.json
+*.ods
+*.proto
+*.pdf
+*.conf
+googleapis
