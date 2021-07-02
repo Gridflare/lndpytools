@@ -5,7 +5,7 @@ routing nodes, do not blindly connect to the script's suggestions. Be warned,
 the number of centrality computations this script attempts can take a while on
 low-end CPUs.
 
-To use the script, run once to generate the congi file, fill out the config
+To use the script, run once to generate the config file, fill out the config
 file, supply describegraph.json, and rerun.
 For lnd: lncli describegraph > describegraph.json
 
