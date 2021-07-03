@@ -6,4 +6,5 @@ __pycache__
 *.proto
 *.pdf
 *.conf
+*.csv
 googleapis

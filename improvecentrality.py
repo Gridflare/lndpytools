@@ -63,10 +63,11 @@ else:
                         'maxchancount': 10000,
                         'mincapacitybtc': 0.2,
                         'maxcapacitybtc': 1000,
-                        'minavgchan': 200_000,
+                        'minavgchan': 750_000,
                         # Default 4+ >1M channels, 2+ >2M channels
                         'minchannels':'1M4 2M2',
-                        'max1mlavailability': 600,
+                        'minreliability': 0.95,
+                        'max1mlavailability': 2000,
                         'finalcandidatecount': 11,
                         }
     config['Other'] = {
@@ -105,12 +106,13 @@ mincapacity = int(filters.getfloat('mincapacitybtc')*1e8)
 maxchancount = filters.getint('maxchancount')
 maxcapacity = int(filters.getfloat('maxcapacitybtc')*1e8)
 minavgchan = filters.getint('minavgchan')
+minreliability = filters.getfloat('minreliability')
 minchannelsstr = filters['minchannels']
 minchanstiers = minchannelsstr.split()
 def validatenodechancapacities(chancaps):
     """
     This function allows more granular selection of candidates than total or
-    avcerage capacity.
+    average capacity.
     """
 
     for tierfilter in minchanstiers:
@@ -128,12 +130,40 @@ def validatenodechancapacities(chancaps):
 
     return True
 
+def determinereliability(candidatekey, graph):
+    # Record reliability-related data into the node record
+
+    node = graph.nodes[candidatekey]
+    chankeypairs = graph.edges(candidatekey)
+    node['disabledcount'] = {'sending':0, 'receiving':0}
+
+    for chankeypair in chankeypairs:
+        chan = graph.edges[chankeypair]
+
+        if None in [chan['node1_policy'], chan['node2_policy']]:
+            continue # TODO: Might want to add a penalty to this
+
+        if candidatekey == chan['node1_pub']:
+            if chan['node1_policy']['disabled']:
+                node['disabledcount']['sending'] += 1
+            if chan['node2_policy']['disabled']:
+                node['disabledcount']['receiving'] += 1
+        elif candidatekey == chan['node2_pub']:
+            if chan['node2_policy']['disabled']:
+                node['disabledcount']['sending'] += 1
+            if chan['node1_policy']['disabled']:
+                node['disabledcount']['receiving'] += 1
+        else:
+            assert False
+
+    return 1 - node['disabledcount']['receiving'] / graph.degree(candidatekey)
 
 def filtercandidatenodes(n, graph):
     # This is the inital filtering pass, it does not include 1ML or centrality
 
     # If already connected or is ourself, abort
-    if graph.has_edge(mynodekey, n['pub_key']) or mynodekey == n['pub_key']:
+    nkey = n['pub_key']
+    if graph.has_edge(mynodekey, nkey) or mynodekey == nkey:
         return False
 
     cond = (len(n['addresses']) > 0, # Node must be connectable
@@ -141,8 +171,12 @@ def filtercandidatenodes(n, graph):
             mincapacity <= n['capacity'] <= maxcapacity,
             n['capacity']/n['num_channels'] > minavgchan, # avg chan size
             )
+    # Filters that require more computation are excluded from cond
+    # in order to get a slight performance boost from short circuiting
 
-    return all(cond) and validatenodechancapacities(n['capacities'])
+    return (all(cond) and validatenodechancapacities(n['capacities'])
+            and determinereliability(nkey, graph) >= minreliability
+            )
 
 # Node must be ranked better than this for availability on 1ml
 max1mlavailability = filters.getint('max1mlavailability')
@@ -219,6 +253,7 @@ def selectinitialcandidates(graph):
 
 newchannelcandidates = selectinitialcandidates(g)
 print('First filtering pass found', len(newchannelcandidates), 'candidates for new channels')
+
 
 def calculatedistancescore(peer2add, mysspl, graphcopy):
 
@@ -399,7 +434,7 @@ def calculatecentralitydeltas(candidatekeys, graph):
 centralitydeltas, mycurrentcentrality = calculatecentralitydeltas(
                                           availablecandidates, g)
 
-cols = 'Δcentr','PLscor','Dist','Avail','Alias','Pubkey'
+cols = 'Δcentr','PLscor','Dist','Avail','Relbty','Alias','Pubkey'
 print(*cols)
 exportdict = {k:[] for k in cols}
 for nkey, cdelta in sorted(centralitydeltas.items(), key=lambda i:-i[1]):
@@ -408,18 +443,21 @@ for nkey, cdelta in sorted(centralitydeltas.items(), key=lambda i:-i[1]):
     dscore = ssplscores[nkey]
     distance = mynodedistances[nkey]
     arank = get1mlstats(nkey)['noderank']['availability']
+    reliability = 1 - nodedata['disabledcount']['receiving']/g.degree(nkey)
 
     cdeltastr = f'{cdelta/mycurrentcentrality:6.1%}'
+    relbtystr = f'{reliability:6.1%}'
     exportdict['Δcentr'].append(cdeltastr)
     exportdict['PLscor'].append(dscore)
     exportdict['Dist'].append(distance)
     exportdict['Avail'].append(arank)
+    exportdict['Relbty'].append(relbtystr)
     exportdict['Alias'].append(alias)
     exportdict['Pubkey'].append(nkey)
 
     # ~ print(f'{cdelta:6.1f} {dscore:6.2f} {arank:5}', alias, nkey)
-    print(f'{cdelta/mycurrentcentrality:+6.1%} {dscore:6.2f} {distance:4} {arank:4}',
-            alias, nkey)
+    print(f'{cdelta/mycurrentcentrality:+6.1%} {dscore:6.2f} {distance:4} {arank:5}',
+            relbtystr, alias, nkey)
 
 if csvexportname:
     df = pd.DataFrame(exportdict)
