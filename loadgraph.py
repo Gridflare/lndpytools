@@ -9,7 +9,7 @@ import networkx as nx
 
 
 def fromjson():
-    with open('describegraph.json') as f:
+    with open('describegraph.json', encoding='utf8') as f:
         graphdata = json.load(f)
 
     g = nx.Graph()
