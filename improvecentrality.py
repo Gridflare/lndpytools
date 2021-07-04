@@ -47,41 +47,6 @@ import numpy as np
 
 import loadgraph
 
-conffile = 'improvecentrality.conf'
-if os.path.isfile(conffile):
-    config = configparser.ConfigParser()
-    config.read(conffile)
-else:
-    print('Config not found, will create', conffile)
-    config = configparser.ConfigParser()
-    config['Node'] = {'pub_key':'yournodepubkeyhere'}
-    config['GraphFilters'] = {
-                        'minrelevantchan':500_000,
-                              }
-    config['CandidateFilters'] ={
-                        'minchancount': 8,
-                        'maxchancount': 10000,
-                        'mincapacitybtc': 0.2,
-                        'maxcapacitybtc': 1000,
-                        'minavgchan': 750_000,
-                        # Default 4+ >1M channels, 2+ >2M channels
-                        'minchannels':'1M4 2M2',
-                        'minreliability': 0.95,
-                        'max1mlavailability': 2000,
-                        'finalcandidatecount': 11,
-                        }
-    config['Other'] = {
-                       'csvexportname':'newchannels.csv',
-                       }
-
-    # ~ config['Newchannels'] = ['test1','test2']
-    with open(conffile, 'w') as cf:
-        config.write(cf)
-
-    print('Please complete the config and rerun')
-    exit()
-
-
 ## Configuration starts here
 
 # Node pubkeys that I plan to open a channel to, count these as already formed.
@@ -97,24 +62,53 @@ removechannels = [
 
             ]
 
-mynodekey = config['Node']['pub_key']
-filters = config['CandidateFilters']
+def loadconfig(conffile = 'improvecentrality.conf'):
 
-# Conditions a node must meet to be considered for further connection analysis
-minchancount = filters.getint('minchancount')
-mincapacity = int(filters.getfloat('mincapacitybtc')*1e8)
-maxchancount = filters.getint('maxchancount')
-maxcapacity = int(filters.getfloat('maxcapacitybtc')*1e8)
-minavgchan = filters.getint('minavgchan')
-minreliability = filters.getfloat('minreliability')
-minchannelsstr = filters['minchannels']
-minchanstiers = minchannelsstr.split()
-def validatenodechancapacities(chancaps):
+    if os.path.isfile(conffile):
+        config = configparser.ConfigParser()
+        config.read(conffile)
+        return config
+
+    print('Config not found, will create', conffile)
+    config = configparser.ConfigParser()
+    config['Node'] = {'pub_key':'yournodepubkeyhere'}
+    config['GraphFilters'] = {
+                         # Ignore channels smaller than this during analysis,
+                         # unless they connect to us. Higher values improve
+                         # script performance and odds of good routes.
+                         # However lower values give numbers closer to reality
+                        'minrelevantchan':500_000,
+                              }
+    config['CandidateFilters'] ={
+                        'minchancount': 8,
+                        'maxchancount': 10000,
+                        'mincapacitybtc': 0.2,
+                        'maxcapacitybtc': 1000,
+                        'minavgchan': 750_000,
+                        # Default 4+ >1M channels, 2+ >2M channels
+                        'minchannels':'1M4 2M2',
+                        'minreliability': 0.95,
+                        # Node must be ranked better than this for availability on 1ml
+                        'max1mlavailability': 2000,
+                        # Limit the number of nodes passed to the final (slow!) centrality computation
+                        'finalcandidatecount': 11,
+                        }
+    config['Other'] = {
+                       # Export results to this CSV file. Set to None or '' to disable
+                       'csvexportname':'newchannels.csv',
+                       }
+
+    with open(conffile, 'w') as cf:
+        config.write(cf)
+
+    print('Please complete the config and rerun')
+    exit()
+
+def validatenodechancapacities(chancaps, minchanstiers):
     """
     This function allows more granular selection of candidates than total or
     average capacity.
     """
-
     for tierfilter in minchanstiers:
         if 'k' in tierfilter:
             ksize, mincount = tierfilter.split('k')
@@ -158,8 +152,18 @@ def determinereliability(candidatekey, graph):
 
     return 1 - node['disabledcount']['receiving'] / graph.degree(candidatekey)
 
-def filtercandidatenodes(n, graph):
+def filtercandidatenodes(n, graph, filters):
     # This is the inital filtering pass, it does not include 1ML or centrality
+
+    # Conditions a node must meet to be considered for further connection analysis
+    minchancount = filters.getint('minchancount')
+    mincapacity = int(filters.getfloat('mincapacitybtc')*1e8)
+    maxchancount = filters.getint('maxchancount')
+    maxcapacity = int(filters.getfloat('maxcapacitybtc')*1e8)
+    minavgchan = filters.getint('minavgchan')
+    minreliability = filters.getfloat('minreliability')
+    minchannelsstr = filters['minchannels']
+    minchanstiers = minchannelsstr.split()
 
     # If already connected or is ourself, abort
     nkey = n['pub_key']
@@ -174,31 +178,21 @@ def filtercandidatenodes(n, graph):
     # Filters that require more computation are excluded from cond
     # in order to get a slight performance boost from short circuiting
 
-    return (all(cond) and validatenodechancapacities(n['capacities'])
+    return (all(cond)
+            and validatenodechancapacities(n['capacities'], minchanstiers)
             and determinereliability(nkey, graph) >= minreliability
             )
 
-# Node must be ranked better than this for availability on 1ml
-max1mlavailability = filters.getint('max1mlavailability')
-
-# Limit the number of nodes passed to the final (slow!) centrality computation
-finalcandidatecount = filters.getint('finalcandidatecount')
-
-# Ignore channels smaller than this during analysis unless they connect to us
-# Higher values improve script performance and odds of good routes
-# However lower values give numbers closer to reality
-graphfilters = config['GraphFilters']
-minrelevantchan = graphfilters.getint('minrelevantchan')
 
 # The number of samples for centrality calculations
 # Setting this can greatly improve speed,
 # but will greatly reduce the quality of results
 centrality_samples = None
 
-# Export results to this CSV file. Set to None or '' to disable
-csvexportname = config['Other'].get('csvexportname')
 
-def filterrelevantnodes(graph):
+def filterrelevantnodes(graph, graphfilters):
+    minrelevantchan = graphfilters.getint('minrelevantchan')
+
     t = time.time()
     def filter_node(nk):
         n = graph.nodes[nk]
@@ -229,33 +223,32 @@ def filterrelevantnodes(graph):
     return gfilt
 
 ## Configuration ends here
-gfull = loadgraph.fromjson()
-for newpeer in addchannels:
-    gfull.add_edge(mynodekey, newpeer, capacity=newchannelsize, last_update=time.time())
-for newpeer in removechannels:
-    gfull.remove_edge(mynodekey, newpeer)
-nx.freeze(gfull)
+def preparegraph(mynodekey, graphfilters):
 
-print('Performing analysis for', gfull.nodes[mynodekey]['alias'])
 
-print('Loaded graph. Number of nodes:', gfull.number_of_nodes(), 'Edges:', gfull.number_of_edges())
-g = filterrelevantnodes(gfull)
+    gfull = loadgraph.fromjson()
+    for newpeer in addchannels:
+        gfull.add_edge(mynodekey, newpeer, capacity=newchannelsize, last_update=time.time())
+    for newpeer in removechannels:
+        gfull.remove_edge(mynodekey, newpeer)
+    nx.freeze(gfull)
 
-print('Simplified graph. Number of nodes:', g.number_of_nodes(), 'Edges:', g.number_of_edges())
-if g.number_of_edges() == 0:
-    raise RuntimeError('No recently updated channels were found, is describgraph.json recent?')
+    print('Loaded graph. Number of nodes:', gfull.number_of_nodes(), 'Edges:', gfull.number_of_edges())
+    g = filterrelevantnodes(gfull, graphfilters)
 
-def selectinitialcandidates(graph):
+    print('Simplified graph. Number of nodes:', g.number_of_nodes(), 'Edges:', g.number_of_edges())
+    if g.number_of_edges() == 0:
+        raise RuntimeError('No recently updated channels were found, is describgraph.json recent?')
+
+    return g
+
+def selectinitialcandidates(graph, filters):
     return [n['pub_key'] for n in
-            filter(lambda n: filtercandidatenodes(n, graph),
+            filter(lambda n: filtercandidatenodes(n, graph, filters),
                    graph.nodes.values())
            ]
 
-newchannelcandidates = selectinitialcandidates(g)
-print('First filtering pass found', len(newchannelcandidates), 'candidates for new channels')
-
-
-def calculatedistancescore(peer2add, mysspl, graphcopy):
+def calculatedistancescore(peer2add, mysspl, graphcopy, mynodekey):
 
     # Modify the graph with a simulated channel
     graphcopy.add_edge(peer2add, mynodekey)
@@ -283,12 +276,13 @@ def calculatedistancescore(peer2add, mysspl, graphcopy):
 
     return distancescore
 
-ssplscores = {}
 
-def sortbyssplscore(candidatekeys, graph):
+def sortbyssplscore(candidatekeys, graph, mynodekey):
+    ssplscores = {}
     mynodedistances = single_source_shortest_path_length(graph, mynodekey)
     # SSPL = Sum of Shortest Path Lenths
     mysspl = sum(mynodedistances.values())
+    # ~ print('SSPL vs closeness', mysspl, centrality.closeness_centrality(graph, mynodekey))
 
     print('Running SSPL score calculations')
     t = time.time()
@@ -297,10 +291,11 @@ def sortbyssplscore(candidatekeys, graph):
                                     candidatekeys,
                                     repeat(mysspl),
                                     repeat(nx.Graph(graph)),
+                                    repeat(mynodekey),
                                     chunksize=64)
 
-        for nkey, score in zip(candidatekeys, scoreresults):
-            ssplscores[nkey] = score
+    for nkey, score in zip(candidatekeys, scoreresults):
+        ssplscores[nkey] = score
 
     # ~ print(list(map(round,ssplscores.values())))
 
@@ -308,20 +303,25 @@ def sortbyssplscore(candidatekeys, graph):
 
     print(f'Completed SSPL score calculations in {time.time()-t:.1f}s')
 
-    return mynodedistances, sortedkeys
+    return sortedkeys, ssplscores
 
-mynodedistances, ssplsortedcandidates = sortbyssplscore(newchannelcandidates, g)
+def get1mlcache(cached1ml={}):
+    if cached1ml:
+        pass
 
-cached1ml = {}
-if os.path.isfile('_cache/1mlcache.json'):
-    print('Found cache file for 1ML statistics')
-    with open('_cache/1mlcache.json') as f:
-        cached1ml = json.load(f)
-elif not os.path.exists('_cache'):
-    os.mkdir('_cache')
+    elif os.path.isfile('_cache/1mlcache.json'):
+        print('Found cache file for 1ML statistics')
+        with open('_cache/1mlcache.json') as f:
+            cached1ml.update(json.load(f))
+
+    elif not os.path.exists('_cache'):
+        os.mkdir('_cache')
+
+    return cached1ml
 
 def get1mlstats(node_key):
     cachetimeout =  3*24*60*60
+    cached1ml = get1mlcache()
 
     if node_key in cached1ml.keys():
         node1ml = cached1ml[node_key]
@@ -342,7 +342,7 @@ def get1mlstats(node_key):
 
     return cached1ml[node_key]
 
-def filterbyavailability(candidatekeys):
+def filterbyavailability(candidatekeys, max1mlavailability):
 
     def checkavailablityscore(nodekey):
         nodestats1ml = get1mlstats(nodekey)
@@ -358,19 +358,22 @@ def filterbyavailability(candidatekeys):
 
     return results
 
-print('Checking 1ML availability statistics')
-t = time.time()
-availablecandidates = []
-for i, canditate in enumerate(filterbyavailability(ssplsortedcandidates)):
-    if i >= finalcandidatecount: break
-    availablecandidates.append(canditate)
+def selectby1ml(sortedcandidates, max1mlavailability, finalcandidatecount):
+    print('Checking 1ML availability statistics')
+    t = time.time()
+    availablecandidates = []
+    for i, canditate in enumerate(
+        filterbyavailability(sortedcandidates, max1mlavailability)):
+            if i >= finalcandidatecount: break
+            availablecandidates.append(canditate)
 
-print('1ML availability filter selected',
-      len(availablecandidates),
-      'candidates for new channels',
-      f'in {time.time()-t:.1f}s')
+    print('1ML availability filter selected',
+          len(availablecandidates),
+          'candidates for new channels',
+          f'in {time.time()-t:.1f}s')
+    return availablecandidates
 
-def calculatenewcentrality(peer2add, graphcopy):
+def calculatenewcentrality(peer2add, graphcopy, mynodekey):
     gtemp = nx.Graph(graphcopy)
     gtemp.add_edge(peer2add, mynodekey)
 
@@ -379,26 +382,26 @@ def calculatenewcentrality(peer2add, graphcopy):
 
     return newcentralities[mynodekey]
 
-def calculatemycentrality(graphcopy):
+def calculatemycentrality(graphcopy, mynodekey):
     bc = centrality.betweenness_centrality(graphcopy,
                 k=None, normalized=False)
 
     return bc[mynodekey]
 
-
-def calculatecentralitydeltas(candidatekeys, graph):
+def calculatecentralitydeltas(candidatekeys, graph, mynodekey):
     centralitydeltas = {}
     t = time.time()
 
     with ProcessPoolExecutor() as executor:
         print('Starting baseline centrality computation')
         mycentralityfuture = executor.submit(calculatemycentrality,
-                                             nx.Graph(graph))
+                                             nx.Graph(graph), mynodekey)
         time.sleep(2) # Ensure the above is running
 
         print('Queuing computations for new centralities')
         centralityfutures = {
-            executor.submit(calculatenewcentrality, nkey, nx.Graph(graph)):nkey
+            executor.submit(calculatenewcentrality,
+                            nkey, nx.Graph(graph), mynodekey):nkey
             for nkey in candidatekeys
             }
 
@@ -431,39 +434,60 @@ def calculatecentralitydeltas(candidatekeys, graph):
     print(f'Completed centrality difference calculations in {(time.time()-t)/60:.1f}m')
     return centralitydeltas, myoldcentrality
 
-centralitydeltas, mycurrentcentrality = calculatecentralitydeltas(
-                                          availablecandidates, g)
+def printresults(centralitydeltas, mycurrentcentrality):
+    cols = 'Δcentr','PLscor','Avail','Relbty','Alias','Pubkey'
+    print(*cols)
+    exportdict = {k:[] for k in cols}
+    for nkey, cdelta in sorted(centralitydeltas.items(), key=lambda i:-i[1]):
+        nodedata = g.nodes[nkey]
+        alias = nodedata['alias']
+        dscore = ssplscores[nkey]
+        arank = get1mlstats(nkey)['noderank']['availability']
+        reliability = 1 - nodedata['disabledcount']['receiving']/g.degree(nkey)
 
-cols = 'Δcentr','PLscor','Dist','Avail','Relbty','Alias','Pubkey'
-print(*cols)
-exportdict = {k:[] for k in cols}
-for nkey, cdelta in sorted(centralitydeltas.items(), key=lambda i:-i[1]):
-    nodedata = g.nodes[nkey]
-    alias = nodedata['alias']
-    dscore = ssplscores[nkey]
-    distance = mynodedistances[nkey]
-    arank = get1mlstats(nkey)['noderank']['availability']
-    reliability = 1 - nodedata['disabledcount']['receiving']/g.degree(nkey)
+        cdeltastr = f'{cdelta/mycurrentcentrality:6.1%}'
+        relbtystr = f'{reliability:6.1%}'
+        exportdict['Δcentr'].append(cdeltastr)
+        exportdict['PLscor'].append(dscore)
+        exportdict['Avail'].append(arank)
+        exportdict['Relbty'].append(relbtystr)
+        exportdict['Alias'].append(alias)
+        exportdict['Pubkey'].append(nkey)
 
-    cdeltastr = f'{cdelta/mycurrentcentrality:6.1%}'
-    relbtystr = f'{reliability:6.1%}'
-    exportdict['Δcentr'].append(cdeltastr)
-    exportdict['PLscor'].append(dscore)
-    exportdict['Dist'].append(distance)
-    exportdict['Avail'].append(arank)
-    exportdict['Relbty'].append(relbtystr)
-    exportdict['Alias'].append(alias)
-    exportdict['Pubkey'].append(nkey)
+        print(f'{cdelta/mycurrentcentrality:+6.1%} {dscore:6.2f} {arank:5}',
+                relbtystr, alias, nkey)
 
-    # ~ print(f'{cdelta:6.1f} {dscore:6.2f} {arank:5}', alias, nkey)
-    print(f'{cdelta/mycurrentcentrality:+6.1%} {dscore:6.2f} {distance:4} {arank:5}',
-            relbtystr, alias, nkey)
-
-if csvexportname:
-    df = pd.DataFrame(exportdict)
-    df.set_index('Pubkey')
-    df.to_csv(csvexportname)
+    return exportdict
 
 
+if __name__ == '__main__':
+    config = loadconfig()
+    mynodekey = config['Node']['pub_key']
+    filters = config['CandidateFilters']
 
+    graphfilters = config['GraphFilters']
+    g = preparegraph(mynodekey, graphfilters)
 
+    print('Performing analysis for', g.nodes[mynodekey]['alias'])
+
+    newchannelcandidates = selectinitialcandidates(g, filters)
+    print('First filtering pass found', len(newchannelcandidates), 'candidates for new channels')
+
+    ssplsortedcandidates, ssplscores = sortbyssplscore(newchannelcandidates, g,
+                                                       mynodekey)
+
+    max1mlavailability = filters.getint('max1mlavailability')
+    finalcandidatecount = filters.getint('finalcandidatecount')
+
+    availablecandidates = selectby1ml(ssplsortedcandidates, max1mlavailability,
+                                      finalcandidatecount)
+
+    centralitydeltas, mycurrentcentrality = calculatecentralitydeltas(
+                                          availablecandidates, g, mynodekey)
+
+    exportdict = printresults(centralitydeltas, mycurrentcentrality)
+    csvexportname = config['Other'].get('csvexportname')
+    if csvexportname:
+        df = pd.DataFrame(exportdict)
+        df.set_index('Pubkey')
+        df.to_csv(csvexportname)
