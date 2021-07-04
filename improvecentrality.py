@@ -152,9 +152,7 @@ def determinereliability(candidatekey, graph):
 
     return 1 - node['disabledcount']['receiving'] / graph.degree(candidatekey)
 
-def filtercandidatenodes(n, graph, filters):
-    # This is the inital filtering pass, it does not include 1ML or centrality
-
+def selectinitialcandidates(graph, filters):
     # Conditions a node must meet to be considered for further connection analysis
     minchancount = filters.getint('minchancount')
     mincapacity = int(filters.getfloat('mincapacitybtc')*1e8)
@@ -165,30 +163,36 @@ def filtercandidatenodes(n, graph, filters):
     minchannelsstr = filters['minchannels']
     minchanstiers = minchannelsstr.split()
 
-    # If already connected or is ourself, abort
-    nkey = n['pub_key']
-    if graph.has_edge(mynodekey, nkey) or mynodekey == nkey:
-        return False
+    def filtercandidatenodes(n, graph, filters):
+        # This is the inital filtering pass, it does not include 1ML or centrality
 
-    cond = (len(n['addresses']) > 0, # Node must be connectable
-            minchancount <= n['num_channels'] <= maxchancount,
-            mincapacity <= n['capacity'] <= maxcapacity,
-            n['capacity']/n['num_channels'] > minavgchan, # avg chan size
-            )
-    # Filters that require more computation are excluded from cond
-    # in order to get a slight performance boost from short circuiting
+        # If already connected or is ourself, abort
+        nkey = n['pub_key']
+        if graph.has_edge(mynodekey, nkey) or mynodekey == nkey:
+            return False
 
-    return (all(cond)
-            and validatenodechancapacities(n['capacities'], minchanstiers)
-            and determinereliability(nkey, graph) >= minreliability
-            )
+        cond = (len(n['addresses']) > 0, # Node must be connectable
+                minchancount <= n['num_channels'] <= maxchancount,
+                mincapacity <= n['capacity'] <= maxcapacity,
+                n['capacity']/n['num_channels'] > minavgchan, # avg chan size
+                )
+        # Filters that require more computation are excluded from cond
+        # in order to get a slight performance boost from short circuiting
 
+        return (all(cond)
+                and validatenodechancapacities(n['capacities'], minchanstiers)
+                and determinereliability(nkey, graph) >= minreliability
+                )
+
+    return [n['pub_key'] for n in
+            filter(lambda n: filtercandidatenodes(n, graph, filters),
+                   graph.nodes.values())
+           ]
 
 # The number of samples for centrality calculations
 # Setting this can greatly improve speed,
 # but will greatly reduce the quality of results
 centrality_samples = None
-
 
 def filterrelevantnodes(graph, graphfilters):
     minrelevantchan = graphfilters.getint('minrelevantchan')
@@ -225,7 +229,6 @@ def filterrelevantnodes(graph, graphfilters):
 ## Configuration ends here
 def preparegraph(mynodekey, graphfilters):
 
-
     gfull = loadgraph.fromjson()
     for newpeer in addchannels:
         gfull.add_edge(mynodekey, newpeer, capacity=newchannelsize, last_update=time.time())
@@ -241,12 +244,6 @@ def preparegraph(mynodekey, graphfilters):
         raise RuntimeError('No recently updated channels were found, is describgraph.json recent?')
 
     return g
-
-def selectinitialcandidates(graph, filters):
-    return [n['pub_key'] for n in
-            filter(lambda n: filtercandidatenodes(n, graph, filters),
-                   graph.nodes.values())
-           ]
 
 def calculatedistancescore(peer2add, mysspl, graphcopy, mynodekey):
 
@@ -276,8 +273,7 @@ def calculatedistancescore(peer2add, mysspl, graphcopy, mynodekey):
 
     return distancescore
 
-
-def sortbyssplscore(candidatekeys, graph, mynodekey):
+def calculatessplscores(candidatekeys, graph, mynodekey):
     ssplscores = {}
     mynodedistances = single_source_shortest_path_length(graph, mynodekey)
     # SSPL = Sum of Shortest Path Lenths
@@ -292,18 +288,24 @@ def sortbyssplscore(candidatekeys, graph, mynodekey):
                                     repeat(mysspl),
                                     repeat(nx.Graph(graph)),
                                     repeat(mynodekey),
-                                    chunksize=64)
+                                    chunksize=128)
 
     for nkey, score in zip(candidatekeys, scoreresults):
         ssplscores[nkey] = score
+
+    print(f'Completed SSPL score calculations in {time.time()-t:.1f}s')
+
+    return ssplscores
+
+def sortbyssplscore(candidatekeys, ssplscores):
 
     # ~ print(list(map(round,ssplscores.values())))
 
     sortedkeys = sorted(candidatekeys, key=lambda k:-ssplscores[k])
 
-    print(f'Completed SSPL score calculations in {time.time()-t:.1f}s')
 
-    return sortedkeys, ssplscores
+
+    return sortedkeys
 
 def get1mlcache(cached1ml={}):
     if cached1ml:
@@ -473,8 +475,8 @@ if __name__ == '__main__':
     newchannelcandidates = selectinitialcandidates(g, filters)
     print('First filtering pass found', len(newchannelcandidates), 'candidates for new channels')
 
-    ssplsortedcandidates, ssplscores = sortbyssplscore(newchannelcandidates, g,
-                                                       mynodekey)
+    ssplscores = calculatessplscores(newchannelcandidates, g, mynodekey)
+    ssplsortedcandidates = sortbyssplscore(newchannelcandidates, ssplscores)
 
     max1mlavailability = filters.getint('max1mlavailability')
     finalcandidatecount = filters.getint('finalcandidatecount')
