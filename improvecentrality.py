@@ -224,7 +224,18 @@ def filterrelevantnodes(graph, graphfilters):
 
         return all(cond)
 
+
+
     gfilt = nx.subgraph_view(graph, filter_node=filter_node, filter_edge=filter_edge)
+
+    mostrecentupdate = 0
+    for e in gfilt.edges.values():
+         if e['last_update'] > mostrecentupdate:
+            mostrecentupdate = e['last_update']
+
+    if t - mostrecentupdate > 12*60*60:
+        raise RuntimeError('Graph is more than 12 hours old, results will be innaccurate')
+
     return gfilt
 
 ## Configuration ends here
