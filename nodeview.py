@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Plots some node statistics for comparing with neighbours
 """

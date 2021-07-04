@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Check how our fees compare to other fees peers are charged
 """

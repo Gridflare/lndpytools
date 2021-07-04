@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 This script attempts to find peers that will substantially improve a node's
 betweenness centrality. This does not guarantee that suggestions are good
