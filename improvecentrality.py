@@ -87,16 +87,19 @@ def loadconfig(conffile = 'improvecentrality.conf'):
                         'maxcapacitybtc': 1000,
                         'minavgchan': 750_000,
                         # Default 4+ >1M channels, 2+ >2M channels
-                        'minchannels':'1M4 2M2',
+                        'minchannels':'1500k4 3M2',
                         'minreliability': 0.95,
                         # Node must be ranked better than this for availability on 1ml
-                        'max1mlavailability': 2000,
+                        'max1mlavailability': 1500,
                         # Limit the number of nodes passed to the final (slow!) centrality computation
                         'finalcandidatecount': 11,
                         }
     config['Other'] = {
                        # Export results to this CSV file. Set to None or '' to disable
                        'csvexportname':'newchannels.csv',
+                       # Set this flag for a massive performance boost at the
+                       # cost of false positives
+                       'nobetweeness':False,
                        }
 
     with open(conffile, 'w') as cf:
@@ -129,6 +132,12 @@ def determinereliability(candidatekey, graph):
     # Record reliability-related data into the node record
 
     node = graph.nodes[candidatekey]
+
+   # This should never happen, but there is evidence that it does
+    if graph.degree(candidatekey) == 0:
+        print(node)
+        raise RuntimeError(f"{node['alias']} has no valid channels")
+
     chankeypairs = graph.edges(candidatekey)
     node['disabledcount'] = {'sending':0, 'receiving':0}
 
@@ -388,11 +397,13 @@ def selectby1ml(sortedcandidates, max1mlavailability, finalcandidatecount):
     return availablecandidates
 
 def calculatenewcentrality(peer2add, graphcopy, mynodekey):
-    gtemp = nx.Graph(graphcopy)
-    gtemp.add_edge(peer2add, mynodekey)
+    graphcopy.add_edge(peer2add, mynodekey)
 
-    newcentralities = centrality.betweenness_centrality(gtemp,
+    newcentralities = centrality.betweenness_centrality(graphcopy,
                         k=centrality_samples, normalized=False)
+
+    # Remove in case the same instance is reused due to batching
+    graphcopy.remove_edge(peer2add, mynodekey)
 
     return newcentralities[mynodekey]
 
@@ -473,6 +484,31 @@ def printresults(centralitydeltas, mycurrentcentrality):
 
     return exportdict
 
+def printresultsnobc(candidates):
+    cols = 'PLscor','Avail','Relbty','Alias','Pubkey'
+    print(*cols)
+    exportdict = {k:[] for k in cols}
+
+    candidatescores = {k:ssplscores[k] for k in candidates}
+
+    for nkey, dscore in sorted(candidatescores.items(), key=lambda i:-i[1]):
+        nodedata = g.nodes[nkey]
+        alias = nodedata['alias']
+        arank = get1mlstats(nkey)['noderank']['availability']
+        reliability = 1 - nodedata['disabledcount']['receiving']/g.degree(nkey)
+
+        relbtystr = f'{reliability:6.1%}'
+        exportdict['PLscor'].append(dscore)
+        exportdict['Avail'].append(arank)
+        exportdict['Relbty'].append(relbtystr)
+        exportdict['Alias'].append(alias)
+        exportdict['Pubkey'].append(nkey)
+
+        print(f'{dscore:6.2f} {arank:5}',
+                relbtystr, alias, nkey)
+
+    return exportdict
+
 
 if __name__ == '__main__':
     config = loadconfig()
@@ -496,10 +532,14 @@ if __name__ == '__main__':
     availablecandidates = selectby1ml(ssplsortedcandidates, max1mlavailability,
                                       finalcandidatecount)
 
-    centralitydeltas, mycurrentcentrality = calculatecentralitydeltas(
-                                          availablecandidates, g, mynodekey)
+    if config['Other'].getboolean('nobetweeness', False):
+        exportdict = printresultsnobc(availablecandidates)
 
-    exportdict = printresults(centralitydeltas, mycurrentcentrality)
+    else:
+        centralitydeltas, mycurrentcentrality = calculatecentralitydeltas(
+                                              availablecandidates, g, mynodekey)
+        exportdict = printresults(centralitydeltas, mycurrentcentrality)
+
     csvexportname = config['Other'].get('csvexportname')
     if csvexportname:
         df = pd.DataFrame(exportdict)

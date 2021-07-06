@@ -2,4 +2,4 @@ numpy
 pandas
 requests
 networkx
-
+matplotlib
