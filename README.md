@@ -23,7 +23,7 @@ Some scripts require a fresh copy of `describegraph.json` in the lndpytools dire
 
 You are now ready to run the scripts like so
 
-`$ python3 improvecentrality.py`
+`$ python3 checklndconf.py`
 
 You can download updates to the repo with
 
