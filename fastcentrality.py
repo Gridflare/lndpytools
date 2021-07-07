@@ -58,7 +58,7 @@ def closeness(graph, nodeid=None):
         else:
             remap2nx = True
 
-    cc = graph.closeness(nodeid)
+    cc = graph.closeness(nodeid, normalized=False)
     if remap2nx:
         # Assumes nxnodemap dict has keys in order
         cc = {nk:c for nk, c in zip(nxnodemap.keys(), cc)}

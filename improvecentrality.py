@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
+This script requires describegraph.json and will generate its own config file.
+
 This script attempts to find peers that will substantially improve a node's
 betweenness centrality. This does not guarantee that suggestions are good
-routing nodes, do not blindly connect to the script's suggestions. Be warned,
-the number of centrality computations this script attempts can take a while on
-low-end CPUs.
+routing nodes, do not blindly connect to the script's suggestions.
 
 To use the script, run once to generate the config file, fill out the config
 file, supply describegraph.json, and rerun.
@@ -13,14 +13,12 @@ For lnd: lncli describegraph > describegraph.json
 Initial candidate selection is done by information within the graph data,
 further refinement is done using the 1ML availability metric and a score.
 
-The score used here is based on the sum of shortest path lengths (SSPL) from a
-node of interest. The score I derive from this metric has no physical meaning,
-but appears to correlate well with betweenness centrality, while being much
-easier to compute.
+The score used for the preliminary ranking of candidates is a modified farness
+metric. This score has no physical meaning, but appears to correlate well with
+betweenness centrality, while being much easier to compute.
 
 Since the end goal is improvement of centrality, and the score isn't perfect,
 the script will compute how each potential peer will affect centrality.
-This takes up the bulk of the runtime, but optimizations are available.
 
 The easiest speedup is to limit the number of nodes that pass final selection
 to a number your CPU can reasonably process,
@@ -261,14 +259,14 @@ def preparegraph(mynodekey, graphfilters):
 
     return g
 
-def calculatedistancescore(peer2add, mysspl, graphcopy, mynodekey):
+def calculatefarnessscore(peer2add, myfarness, graphcopy, mynodekey):
 
     # Modify the graph with a simulated channel
     graphcopy.add_edge(peer2add, mynodekey)
 
-    mynewdists = single_source_shortest_path_length(graphcopy, mynodekey)
-    mynewsspl = sum(mynewdists.values())
-    mysspldelta = mynewsspl - mysspl
+    mynewfarness = 1/fastcentrality.closeness(graphcopy, mynodekey)
+
+    myfarnessdelta = mynewfarness - myfarness
 
     # Since this function is batched, and making a fresh copy is slow,
     # Make sure all changes are undone
@@ -277,50 +275,40 @@ def calculatedistancescore(peer2add, mysspl, graphcopy, mynodekey):
     # Want this data from the unmodified graph
     # Otherwise their score will be lowered if the channel
     # is too beneficial to them
-    theirdists = single_source_shortest_path_length(graphcopy, peer2add)
-    # SSPL = Sum of Shortest Path Lenths
-    theirsspl = sum(theirdists.values())
+    theirfarness = 1/fastcentrality.closeness(graphcopy, peer2add)
 
     # This is where the magic happens
-    # Nodes that improve our sum of path lengths,
-    # as well as nodes with a subpar sum of path lengths,
+    # Nodes that reduce our farness,
+    # as well as nodes with a high farness,
     # are prioritized. But especially nodes that have both.
-    distancescore = np.cbrt(abs(mysspldelta)) + theirsspl/1000
+    farnessscore = np.cbrt(abs(myfarnessdelta)) + theirfarness/1000
 
-    return distancescore
+    return farnessscore
 
-def calculatessplscores(candidatekeys, graph, mynodekey):
-    ssplscores = {}
-    mynodedistances = single_source_shortest_path_length(graph, mynodekey)
-    # SSPL = Sum of Shortest Path Lenths
-    mysspl = sum(mynodedistances.values())
-    # ~ print('SSPL vs closeness', mysspl, centrality.closeness_centrality(graph, mynodekey))
+def calculatefarnessscores(candidatekeys, graph, mynodekey):
+    farnesscores = {}
 
-    print('Running SSPL score calculations')
+    myfarness = 1/fastcentrality.closeness(graph, mynodekey)
+
+    print('Running modified farness score calculations')
     t = time.time()
     with ProcessPoolExecutor() as executor:
-        scoreresults = executor.map(calculatedistancescore,
+        scoreresults = executor.map(calculatefarnessscore,
                                     candidatekeys,
-                                    repeat(mysspl),
+                                    repeat(myfarness),
                                     repeat(nx.Graph(graph)),
                                     repeat(mynodekey),
                                     chunksize=128)
 
     for nkey, score in zip(candidatekeys, scoreresults):
-        ssplscores[nkey] = score
+        farnesscores[nkey] = score
 
-    print(f'Completed SSPL score calculations in {time.time()-t:.1f}s')
+    print(f'Completed modified farness score calculations in {time.time()-t:.1f}s')
 
-    return ssplscores
+    return farnesscores
 
-def sortbyssplscore(candidatekeys, ssplscores):
-
-    # ~ print(list(map(round,ssplscores.values())))
-
-    sortedkeys = sorted(candidatekeys, key=lambda k:-ssplscores[k])
-
-
-
+def sortbyfarnesscore(candidatekeys, farnesscores):
+    sortedkeys = sorted(candidatekeys, key=lambda k:-farnesscores[k])
     return sortedkeys
 
 def get1mlcache(cached1ml={}):
@@ -450,26 +438,26 @@ def calculatecentralitydeltas(candidatekeys, graph, mynodekey):
     return centralitydeltas, myoldcentrality
 
 def printresults(centralitydeltas, mycurrentcentrality):
-    cols = 'Δcentr','PLscor','Avail','Relbty','Alias','Pubkey'
+    cols = 'Δcentr','MFscor','Avail','Relbty','Alias','Pubkey'
     print(*cols)
     exportdict = {k:[] for k in cols}
     for nkey, cdelta in sorted(centralitydeltas.items(), key=lambda i:-i[1]):
         nodedata = g.nodes[nkey]
         alias = nodedata['alias']
-        dscore = ssplscores[nkey]
+        mfscore = farnesscores[nkey]
         arank = get1mlstats(nkey)['noderank']['availability']
         reliability = 1 - nodedata['disabledcount']['receiving']/g.degree(nkey)
 
         cdeltastr = f'{cdelta/mycurrentcentrality:6.1%}'
         relbtystr = f'{reliability:6.1%}'
         exportdict['Δcentr'].append(cdeltastr)
-        exportdict['PLscor'].append(dscore)
+        exportdict['MFscor'].append(mfscore)
         exportdict['Avail'].append(arank)
         exportdict['Relbty'].append(relbtystr)
         exportdict['Alias'].append(alias)
         exportdict['Pubkey'].append(nkey)
 
-        print(f'{cdelta/mycurrentcentrality:+6.1%} {dscore:6.2f} {arank:5}',
+        print(f'{cdelta/mycurrentcentrality:+6.1%} {mfscore:6.2f} {arank:5}',
                 relbtystr, alias, nkey)
 
     return exportdict
@@ -488,13 +476,13 @@ if __name__ == '__main__':
     newchannelcandidates = selectinitialcandidates(g, filters)
     print('First filtering pass found', len(newchannelcandidates), 'candidates for new channels')
 
-    ssplscores = calculatessplscores(newchannelcandidates, g, mynodekey)
-    ssplsortedcandidates = sortbyssplscore(newchannelcandidates, ssplscores)
+    farnesscores = calculatefarnessscores(newchannelcandidates, g, mynodekey)
+    mfssortedcandidates = sortbyfarnesscore(newchannelcandidates, farnesscores)
 
     max1mlavailability = filters.getint('max1mlavailability')
     finalcandidatecount = filters.getint('finalcandidatecount')
 
-    availablecandidates = selectby1ml(ssplsortedcandidates, max1mlavailability,
+    availablecandidates = selectby1ml(mfssortedcandidates, max1mlavailability,
                                       finalcandidatecount)
 
     centralitydeltas, mycurrentcentrality = calculatecentralitydeltas(
