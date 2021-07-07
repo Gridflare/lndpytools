@@ -12,9 +12,12 @@ Change into the new directory
 `$ cd lndpytools`
 
 Install requirements
-`$ pip3 install -r requiments.txt --user`
+`$ pip3 install -r requirements.txt --user`
 
-Then grab a copy of `describgraph.json` if required, and run a script
+Some scripts require a fresh copy of `describegraph.json` in the lndpytools directory. Create this file from lnd with
+`$ lncli describegraph > describegraph.json`
+
+You are now ready to run the scripts like so
 `python3 improvecentrality.py`
 
 You can download updates to the repo with `$ git pull`
