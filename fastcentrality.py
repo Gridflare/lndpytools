@@ -47,6 +47,24 @@ def betweenness(graph, nodeid=None):
 
     return bc
 
+def closeness(graph, nodeid=None):
+    remap2nx = False
+    if isinstance(graph, nx.Graph):
+        # Convert nx graph to igraph format
+        graph, nxnodemap = nx2ig(graph)
+        # Convert nx node id to igraph integer
+        if nodeid is not None:
+            nodeid = nxnodemap[nodeid]
+        else:
+            remap2nx = True
+
+    cc = graph.closeness(nodeid)
+    if remap2nx:
+        # Assumes nxnodemap dict has keys in order
+        cc = {nk:c for nk, c in zip(nxnodemap.keys(), cc)}
+
+    return cc
+
 
 if __name__ == '__main__':
     # just a quick test
@@ -64,12 +82,17 @@ if __name__ == '__main__':
 
     t = time.time()
     igbc = ig.betweenness()
-    print('IG BCentrality in', time.time()-t)
+    print('IG BCentrality in (ms)', (time.time()-t)*1000)
     print(igbc)
 
     t = time.time()
+    igcc = ig.closeness()
+    print('IG CCentrality in (ms)', (time.time()-t)*1000)
+    print(igcc)
+
+    t = time.time()
     nxbc = nx.algorithms.centrality.betweenness_centrality(nxg, normalized=False)
-    print('NX BCentrality in', time.time()-t)
+    print('NX BCentrality in (ms)', (time.time()-t)*1000)
     print(nxbc)
 
 
