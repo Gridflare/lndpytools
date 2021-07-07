@@ -34,7 +34,7 @@ graph more and improve performance.
 
 import json
 import time
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor
 import os
 from itertools import repeat
 import configparser
@@ -47,6 +47,7 @@ import pandas as pd
 import numpy as np
 
 import loadgraph
+import fastcentrality
 
 ## Configuration starts here
 
@@ -399,19 +400,15 @@ def selectby1ml(sortedcandidates, max1mlavailability, finalcandidatecount):
 def calculatenewcentrality(peer2add, graphcopy, mynodekey):
     graphcopy.add_edge(peer2add, mynodekey)
 
-    newcentralities = centrality.betweenness_centrality(graphcopy,
-                        k=centrality_samples, normalized=False)
+    newbc = fastcentrality.betweenness(graphcopy, mynodekey)
 
     # Remove in case the same instance is reused due to batching
     graphcopy.remove_edge(peer2add, mynodekey)
 
-    return newcentralities[mynodekey]
+    return newbc
 
 def calculatemycentrality(graphcopy, mynodekey):
-    bc = centrality.betweenness_centrality(graphcopy,
-                k=None, normalized=False)
-
-    return bc[mynodekey]
+    return fastcentrality.betweenness(graphcopy, mynodekey)
 
 def calculatecentralitydeltas(candidatekeys, graph, mynodekey):
     centralitydeltas = {}
@@ -421,42 +418,41 @@ def calculatecentralitydeltas(candidatekeys, graph, mynodekey):
         print('Starting baseline centrality computation')
         mycentralityfuture = executor.submit(calculatemycentrality,
                                              nx.Graph(graph), mynodekey)
-        time.sleep(2) # Ensure the above is running
 
         print('Queuing computations for new centralities')
-        centralityfutures = {
-            executor.submit(calculatenewcentrality,
-                            nkey, nx.Graph(graph), mynodekey):nkey
-            for nkey in candidatekeys
-            }
 
-        print('Waiting for baseline centrality calculation to complete,',
-              'this will take a few minutes')
+        newcentralities = executor.map(calculatenewcentrality,
+                                        candidatekeys,
+                                        repeat(nx.Graph(graph)),
+                                        repeat(mynodekey),
+                                        chunksize=4)
+
+
+        print('Waiting for baseline centrality calculation to complete')
         myoldcentrality = mycentralityfuture.result()
 
         print('Our current centrality is approximately', int(myoldcentrality))
 
-        print('Collecting centrality results, this will take a while')
+        print('Collecting centrality results, this may take a while')
 
         counter = 0
         njobs = len(candidatekeys)
         print(f'Progress: {counter}/{njobs} {counter/njobs:.1%}',
-              f'Elapsed time {(time.time()-t)/60:.1f}m',
+              f'Elapsed time {time.time()-t:.1f}s',
               end='\r')
-        for cf in as_completed(centralityfutures):
-            nkey = centralityfutures[cf]
-            newcentrality = cf.result()
+
+        for nkey, newcentrality in zip(candidatekeys, newcentralities):
 
             centralitydelta = newcentrality - myoldcentrality
             centralitydeltas[nkey] = centralitydelta
 
             counter += 1
             print(f'Progress: {counter}/{njobs} {counter/njobs:.1%}',
-                  f'Elapsed time {(time.time()-t)/60:.1f}m',
+                  f'Elapsed time {time.time()-t:.1f}s',
                   end='\r')
 
 
-    print(f'Completed centrality difference calculations in {(time.time()-t)/60:.1f}m')
+    print(f'Completed centrality difference calculations in {time.time()-t:.1f}s')
     return centralitydeltas, myoldcentrality
 
 def printresults(centralitydeltas, mycurrentcentrality):
