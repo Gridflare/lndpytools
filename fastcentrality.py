@@ -43,7 +43,7 @@ def betweenness(graph, nodeid=None):
     bc = graph.betweenness(nodeid)
     if remap2nx:
         # Assumes nxnodemap dict has keys in order
-        bc = {nk:c for nk, c in zip(nxnodemap.keys())}
+        bc = {nk:c for nk, c in zip(nxnodemap.keys(), bc)}
 
     return bc
 

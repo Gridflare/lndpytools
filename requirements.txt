@@ -2,5 +2,5 @@ numpy
 pandas
 requests
 networkx
-igraph
+python-igraph
 matplotlib
