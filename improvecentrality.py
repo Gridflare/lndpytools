@@ -98,9 +98,6 @@ def loadconfig(conffile = 'improvecentrality.conf'):
     config['Other'] = {
                        # Export results to this CSV file. Set to None or '' to disable
                        'csvexportname':'newchannels.csv',
-                       # Set this flag for a massive performance boost at the
-                       # cost of false positives
-                       'nobetweeness':False,
                        }
 
     with open(conffile, 'w') as cf:
@@ -480,31 +477,6 @@ def printresults(centralitydeltas, mycurrentcentrality):
 
     return exportdict
 
-def printresultsnobc(candidates):
-    cols = 'PLscor','Avail','Relbty','Alias','Pubkey'
-    print(*cols)
-    exportdict = {k:[] for k in cols}
-
-    candidatescores = {k:ssplscores[k] for k in candidates}
-
-    for nkey, dscore in sorted(candidatescores.items(), key=lambda i:-i[1]):
-        nodedata = g.nodes[nkey]
-        alias = nodedata['alias']
-        arank = get1mlstats(nkey)['noderank']['availability']
-        reliability = 1 - nodedata['disabledcount']['receiving']/g.degree(nkey)
-
-        relbtystr = f'{reliability:6.1%}'
-        exportdict['PLscor'].append(dscore)
-        exportdict['Avail'].append(arank)
-        exportdict['Relbty'].append(relbtystr)
-        exportdict['Alias'].append(alias)
-        exportdict['Pubkey'].append(nkey)
-
-        print(f'{dscore:6.2f} {arank:5}',
-                relbtystr, alias, nkey)
-
-    return exportdict
-
 
 if __name__ == '__main__':
     config = loadconfig()
@@ -528,13 +500,9 @@ if __name__ == '__main__':
     availablecandidates = selectby1ml(ssplsortedcandidates, max1mlavailability,
                                       finalcandidatecount)
 
-    if config['Other'].getboolean('nobetweeness', False):
-        exportdict = printresultsnobc(availablecandidates)
-
-    else:
-        centralitydeltas, mycurrentcentrality = calculatecentralitydeltas(
-                                              availablecandidates, g, mynodekey)
-        exportdict = printresults(centralitydeltas, mycurrentcentrality)
+    centralitydeltas, mycurrentcentrality = calculatecentralitydeltas(
+                                          availablecandidates, g, mynodekey)
+    exportdict = printresults(centralitydeltas, mycurrentcentrality)
 
     csvexportname = config['Other'].get('csvexportname')
     if csvexportname:
