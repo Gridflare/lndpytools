@@ -180,6 +180,7 @@ def selectinitialcandidates(graph, filters):
             return False
 
         cond = (len(n['addresses']) > 0, # Node must be connectable
+                graph.degree(nkey) > 0, # Must have unfiltered channels
                 minchancount <= n['num_channels'] <= maxchancount,
                 mincapacity <= n['capacity'] <= maxcapacity,
                 n['capacity']/n['num_channels'] > minavgchan, # avg chan size
@@ -197,11 +198,6 @@ def selectinitialcandidates(graph, filters):
                    graph.nodes.values())
            ]
 
-# The number of samples for centrality calculations
-# Setting this can greatly improve speed,
-# but will greatly reduce the quality of results
-centrality_samples = None
-
 def filterrelevantnodes(graph, graphfilters):
     minrelevantchan = graphfilters.getint('minrelevantchan')
 
@@ -212,6 +208,7 @@ def filterrelevantnodes(graph, graphfilters):
         cond = (
                 # A node that hasn't updated in this time might be dead
                 t - n['last_update'] < 4 * 30 *24*60*60 ,
+                graph.degree(nk) > 0, # doesn't seem to fix the issue
             )
 
         return all(cond)
