@@ -21,6 +21,12 @@ Some scripts require a fresh copy of `describegraph.json` in the lndpytools dire
 
 `$ lncli describegraph > describegraph.json`
 
+Other scripts connect to lnd directly, create the config file with
+
+`$ python3 nodeinterface.py`
+
+Double check `node.conf` and rerun nodeinterface, it will say "`Connected to node <alias>`" if everything is correct
+
 You are now ready to run the scripts like so
 
 `$ python3 checklndconf.py`
