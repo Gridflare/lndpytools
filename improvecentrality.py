@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 """
 This script requires describegraph.json and will generate its own config file.
+Running on node hardware is not recommended, copy describegraph.json to a
+desktop.
 
 This script attempts to find peers that will substantially improve a node's
 betweenness centrality. This does not guarantee that suggestions are good
 routing nodes, do not blindly connect to the script's suggestions.
-
-To use the script, run once to generate the config file, fill out the config
-file, supply describegraph.json, and rerun.
-For lnd: lncli describegraph > describegraph.json
 
 Initial candidate selection is done by information within the graph data,
 further refinement is done using the 1ML availability metric and a score.
