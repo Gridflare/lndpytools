@@ -19,6 +19,9 @@ print('Loading graph')
 g = loadgraph.fromjson()
 nx.freeze(g)
 
+def getNodesChannels(pubkey):
+    pass
+
 inboundfees = {}
 print('Checking peer fees')
 for peerkey in g.adj[mynodekey]:

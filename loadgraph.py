@@ -13,6 +13,7 @@ def fromjson():
         graphdata = json.load(f)
 
     g = nx.Graph()
+    g.allchannels = []
     # Leave weight undefined for now, could be capacity or fee depending on algorithm
     for node in graphdata['nodes']:
         g.add_node(node['pub_key'],
@@ -39,21 +40,33 @@ def fromjson():
             g.nodes[n]['capacities'].append(cap)
             g.nodes[n]['num_channels'] += 1
 
+        edgeparams = dict(
+                       channel_id=edge['channel_id'],
+                       chan_point=edge['chan_point'],
+                       last_update=edge['last_update'],
+                       capacity=cap,
+                       node1_pub=n1,
+                       node2_pub=n2,
+                       node1_policy=edge['node1_policy'],
+                       node2_policy=edge['node2_policy'],
+                       )
+        g.allchannels.append(edgeparams)
+
+        redundant_edges = []
         if g.has_edge(n1, n2):
             # Need to decide to overwrite or skip
             if g.edges[n1, n2]['capacity'] > cap:
-                # Keep the old edge if it is bigger
+                #Old edge is bigger, keep it
+                g.edges[n1, n2]['redundant_edges'].append(edgeparams)
                 continue
+            else:
+                # New edge is bigger
+                lesser_edge = g.edges[n1, n2]
+                redundate_edges = lesser_edge['redundant_edges']
+                del lesser_edge['redundant_edges']
+                redundate_edges.append(lesser_edge)
 
-        g.add_edge(n1, n2,
-                   channel_id=edge['channel_id'],
-                   chan_point=edge['chan_point'],
-                   last_update=edge['last_update'],
-                   capacity=cap,
-                   node1_pub=n1,
-                   node2_pub=n2,
-                   node1_policy=edge['node1_policy'],
-                   node2_policy=edge['node2_policy'],
-                   )
+        g.add_edge(n1, n2, **edgeparams, redundant_edges=redundant_edges)
+
 
     return g
