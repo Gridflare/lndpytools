@@ -43,6 +43,7 @@ for chan in mynode.ListChannels().channels:
     print(chanid, f'{kcap:5.0f}{remote_ratio:6.1%} {alias[:20]:20}', *flags)
     myneighbours[chan.remote_pubkey] = {'flags':flags, 'usage':totalsatsmoved}
 
+exit()
 print('\nFetching graph for further analysis')
 graph = mynode.DescribeGraph()
 print(len(graph.nodes), len(graph.edges))
