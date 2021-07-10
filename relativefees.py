@@ -16,7 +16,7 @@ median_payment = 100e3 # sat, Payment size for calculating routing costs
 minchancapacity = median_payment*4
 
 print('Loading graph')
-g = loadgraph.fromjson()
+g = loadgraph.lnGraph.fromjson()
 nx.freeze(g)
 
 def getNodesChannels(pubkey):
@@ -50,35 +50,35 @@ for peerkey in g.adj[mynodekey]:
 
 print('Checking our fees')
 myfeepercentiles = []
-print('My_fee %ile Next_mult Chan_cap_ksat Alias')
+print('My_fee %ile Chan_cap_ksat Alias')
 for peerkey in g.adj[mynodekey]:
     peer = g.nodes[peerkey]
     peerinfees = np.array(sorted(inboundfees[peerkey]))
-    chan = g.edges[mynodekey, peerkey]
 
-    if chan['capacity'] < minchancapacity:
-        continue # can't check a channel we skipped earlier
+    commonchannels = [g.edges[mynodekey, peerkey]]
+    commonchannels.extend(commonchannels[0]['redundant_edges'])
 
-    if mynodekey == chan['node1_pub']:
-        myfeerate = chan['node1_policy']['fee_rate_milli_msat']
-        myfeebase = chan['node1_policy']['fee_base_msat']
-    elif mynodekey == chan['node2_pub']:
-        myfeerate = chan['node2_policy']['fee_rate_milli_msat']
-        myfeebase = chan['node2_policy']['fee_base_msat']
-    else:
-        assert False
 
-    myfee = (int(myfeebase)/1e3 + int(myfeerate)/1e6 * median_payment)
-    myfeerank = np.where(peerinfees==myfee)[0][0]+1 # higher is more expensive
-    myfeep = myfeerank/len(peerinfees)
-    myfeepercentiles.append(myfeep)
+    for chan in commonchannels:
 
-    # Ratio of our fee to a peer vs the next lowest fee to that peer
-    nextlowestratio = myfee/peerinfees[myfeerank-2]
+        if chan['capacity'] < minchancapacity:
+            continue # can't check a channel we skipped earlier
 
-    print(f"{myfee:6.1f} {myfeep:4.0%} {nextlowestratio:4.1f} {chan['capacity']/1e3:5.0f}",peer['alias'])
-    # ~ print(myfee, peerinfees[-7:])
-    # ~ print(len(peerinfees), np.where(peerinfees==myfee)[0][0])
+        if mynodekey == chan['node1_pub']:
+            myfeerate = chan['node1_policy']['fee_rate_milli_msat']
+            myfeebase = chan['node1_policy']['fee_base_msat']
+        elif mynodekey == chan['node2_pub']:
+            myfeerate = chan['node2_policy']['fee_rate_milli_msat']
+            myfeebase = chan['node2_policy']['fee_base_msat']
+        else:
+            assert False
+
+        myfee = (int(myfeebase)/1e3 + int(myfeerate)/1e6 * median_payment)
+        myfeep = np.sum(peerinfees < myfee) / len(peerinfees)
+        myfeepercentiles.append(myfeep)
+
+        print(f"{myfee:6.1f} {myfeep:4.0%} {chan['capacity']/1e3:5.0f}",peer['alias'])
+
 
 print('\n STATS')
 print(f'Max {max(myfeepercentiles):.1%}')

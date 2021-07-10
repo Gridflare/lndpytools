@@ -241,7 +241,7 @@ def filterrelevantnodes(graph, graphfilters):
 ## Configuration ends here
 def preparegraph(mynodekey, graphfilters):
 
-    gfull = loadgraph.fromjson()
+    gfull = loadgraph.lnGraph.fromjson()
     for newpeer in addchannels:
         gfull.add_edge(mynodekey, newpeer, capacity=newchannelsize, last_update=time.time())
     for newpeer in removechannels:
