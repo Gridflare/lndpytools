@@ -30,7 +30,7 @@ Instead of connecting to lnd, some scripts can use a fresh copy of `describegrap
 
 You are now ready to run the scripts like so
 
-`$ python3 checklndconf.py`
+`$ python3 checkchannels.py`
 
 You can download updates to the repo with
 
