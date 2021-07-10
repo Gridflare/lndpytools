@@ -30,23 +30,31 @@ for peerkey in g.adj[mynodekey]:
     for peerpeerkey in g.adj[peerkey]:
         peerchan = g.edges[peerkey, peerpeerkey]
 
-        if any((peerchan['capacity'] < minchancapacity,
-                peerchan['node1_policy'] is None,
-                peerchan['node2_policy'] is None,
-            )):
-            continue # ignore this insignificant channel
+        commonchannels = [g.edges[peerkey, peerpeerkey]]
+        commonchannels.extend(commonchannels[0]['redundant_edges'])
 
-        if peerpeerkey == peerchan['node1_pub']:
-            inboundrate = peerchan['node1_policy']['fee_rate_milli_msat']
-            inboundbase = peerchan['node1_policy']['fee_base_msat']
-        elif peerpeerkey == peerchan['node2_pub']:
-            inboundrate = peerchan['node2_policy']['fee_rate_milli_msat']
-            inboundbase = peerchan['node2_policy']['fee_base_msat']
-        else:
-            assert False
+        thispairinfees = []
+        for peerchan in commonchannels:
 
-        infee = (int(inboundbase)/1e3 + int(inboundrate)/1e6 * median_payment)
-        inboundfees[peerkey].append(infee)
+            if any((peerchan['capacity'] < minchancapacity,
+                    peerchan['node1_policy'] is None,
+                    peerchan['node2_policy'] is None,
+                )):
+                continue # ignore this insignificant channel
+
+            if peerpeerkey == peerchan['node1_pub']:
+                inboundrate = peerchan['node1_policy']['fee_rate_milli_msat']
+                inboundbase = peerchan['node1_policy']['fee_base_msat']
+            elif peerpeerkey == peerchan['node2_pub']:
+                inboundrate = peerchan['node2_policy']['fee_rate_milli_msat']
+                inboundbase = peerchan['node2_policy']['fee_base_msat']
+            else:
+                assert False
+
+            thispairinfees.append(int(inboundbase)/1e3 + int(inboundrate)/1e6 * median_payment)
+
+        if len(thispairinfees) > 0: # Can happen with outbound-only peers
+            inboundfees[peerkey].append(np.median(thispairinfees))
 
 print('Checking our fees')
 myfeepercentiles = []
@@ -57,7 +65,6 @@ for peerkey in g.adj[mynodekey]:
 
     commonchannels = [g.edges[mynodekey, peerkey]]
     commonchannels.extend(commonchannels[0]['redundant_edges'])
-
 
     for chan in commonchannels:
 
@@ -77,7 +84,7 @@ for peerkey in g.adj[mynodekey]:
         myfeep = np.sum(peerinfees < myfee) / len(peerinfees)
         myfeepercentiles.append(myfeep)
 
-        print(f"{myfee:6.1f} {myfeep:4.0%} {chan['capacity']/1e3:5.0f}",peer['alias'])
+        print(f"{myfee:6.1f} {myfeep:5.1%} {chan['capacity']/1e3:5.0f}",peer['alias'])
 
 
 print('\n STATS')
