@@ -107,7 +107,7 @@ class MinimalNodeInterface(BaseInterface):
     @classmethod
     def fromconfig(cls, conffile='node.conf', nodename='Node1'):
         if not os.path.isfile(conffile):
-            print('Config not found, will create', conffile)
+            print('Config for lnd not found, will create', conffile)
             config = configparser.ConfigParser()
             config[nodename] = {'server': 'localhost:10009',
                 'macpath': LNDDIR + '/data/chain/bitcoin/mainnet/admin.macaroon',

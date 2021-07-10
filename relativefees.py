@@ -11,12 +11,14 @@ import loadgraph
 
 mynodekey = '02e2bf9e87c7ba0ea046882d9b3301ca9a3b049aa920dccbd836c4008eac32d4e5' # Gridflare
 
-median_payment = 100e3 # sat, Payment size for calculating routing costs
+#  Payment size for calculating routing costs
+median_payment = 100e3 # sat
 
+# ignore the fees on channels smaller than this
 minchancapacity = median_payment*4
 
 print('Loading graph')
-g = loadgraph.lnGraph.fromjson()
+g = loadgraph.lnGraph.autoload()
 nx.freeze(g)
 
 def getNodesChannels(pubkey):

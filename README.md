@@ -17,15 +17,16 @@ Install requirements
 
 `$ pip3 install -r requirements.txt --user`
 
-Some scripts require a fresh copy of `describegraph.json` in the lndpytools directory. Create this file from lnd with
-
-`$ lncli describegraph > describegraph.json`
-
-Other scripts connect to lnd directly, create the config file with
+Most scripts connect to lnd directly after some setup, create the config file with
 
 `$ python3 nodeinterface.py`
 
 Double check `node.conf` and rerun nodeinterface, it will say "`Connected to node <alias>`" if everything is correct
+
+Instead of connecting to lnd, some scripts can use a fresh copy of `describegraph.json` in the lndpytools directory. Create this file from lnd with
+
+`$ lncli describegraph > describegraph.json`
+
 
 You are now ready to run the scripts like so
 

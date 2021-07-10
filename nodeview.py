@@ -23,7 +23,7 @@ median_payment = 100e3 # sat, Payment size for calculating routing costs
 # Should ignore channels smaller than (2x? 4-5x?) the above
 feeceiling = 6000 #sats, ignore fees charge more than this, unidirectional channel?
 
-g = loadgraph.lnGraph.fromjson()
+g = loadgraph.lnGraph.autoload()
 # ~ print(list(g.nodes.keys())[0])
 nx.freeze(g)
 
