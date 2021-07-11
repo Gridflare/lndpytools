@@ -110,7 +110,7 @@ class MinimalNodeInterface(BaseInterface):
             print('Config for lnd not found, will create', conffile)
             config = configparser.ConfigParser()
             config[nodename] = {'server': 'localhost:10009',
-                'macpath': LNDDIR + '/data/chain/bitcoin/mainnet/admin.macaroon',
+                'macpath': LNDDIR + '/data/chain/bitcoin/mainnet/readonly.macaroon',
                 'tlspath': LNDDIR + '/tls.cert',
                 }
 
@@ -119,6 +119,7 @@ class MinimalNodeInterface(BaseInterface):
 
             print('Please check/complete the config and rerun')
             print('If running remotely you will need a local copy of your macaroon and tls.cert')
+            print('Using readonly.macaroon is recommended unless you know what you are doing.')
             exit()
 
         else:
