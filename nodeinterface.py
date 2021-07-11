@@ -74,7 +74,7 @@ class MinimalNodeInterface(BaseInterface):
 
         assert os.path.isfile(tlspath), tlspath + ' does not exist!'
         assert os.path.isfile(macpath), macpath + ' does not exist!'
-        assert tlspath.endswith('.cert')
+        assert tlspath.endswith(('.cert','.crt'))
         assert macpath.endswith('.macaroon')
 
         tlsCert = open(tlspath, 'rb').read()
@@ -118,6 +118,7 @@ class MinimalNodeInterface(BaseInterface):
                 config.write(cf)
 
             print('Please check/complete the config and rerun')
+            print('If running remotely you will need a local copy of your macaroon and tls.cert')
             exit()
 
         else:
