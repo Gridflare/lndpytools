@@ -77,7 +77,8 @@ if 'bolt' in lndconf:
 
 if not autocompact:
     issuecount += 1
-    print('db.bolt.auto-compact is not enabled, this can help use less disk space in the long term')
+    print('db.bolt.auto-compact is not enabled, this can help use less disk space')
+    print('If you are on a 32-bit OS such as a Pi, your DB must never exceed 1GB')
 
 print(issuecount, 'potential improvements were found')
 print('See here for an explanation of all options in the config file')
