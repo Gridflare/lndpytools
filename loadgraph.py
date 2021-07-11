@@ -178,8 +178,8 @@ class lnGraph(nx.Graph):
             mtime = os.path.getmtime(graphfilename)
 
             # if expired, warn and exit
-            if time.time() - mtime > 12 * 60 * 60:
-                print(graphfilename, 'was found but is more than 12 hours old')
+            if time.time() - mtime > 8 * 60 * 60:
+                print(graphfilename, 'was found but is more than 8 hours old')
                 print('Please update it or delete to attempt fetching from lnd')
                 exit()
 

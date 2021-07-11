@@ -233,8 +233,8 @@ def filterrelevantnodes(graph, graphfilters):
          if e['last_update'] > mostrecentupdate:
             mostrecentupdate = e['last_update']
 
-    if t - mostrecentupdate > 12*60*60:
-        raise RuntimeError('Graph is more than 12 hours old, results will be innaccurate')
+    if t - mostrecentupdate > 8*60*60:
+        raise RuntimeError('Graph is more than 8 hours old, results will be innaccurate')
 
     return gfilt
 
@@ -482,6 +482,10 @@ if __name__ == '__main__':
 
     availablecandidates = selectby1ml(mfssortedcandidates, max1mlavailability,
                                       finalcandidatecount)
+
+    if len(availablecandidates) == 0:
+        print('No candidates found, is your graph stale?')
+        print('If issue persists, delete describegraph.json and improvecentrality.conf')
 
     centralitydeltas, mycurrentcentrality = calculatecentralitydeltas(
                                           availablecandidates, g, mynodekey)
