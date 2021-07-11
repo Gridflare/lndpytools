@@ -4,3 +4,5 @@ requests
 networkx
 python-igraph
 matplotlib
+grpcio
+grpcio-tools
