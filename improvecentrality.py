@@ -486,6 +486,7 @@ if __name__ == '__main__':
     if len(availablecandidates) == 0:
         print('No candidates found, is your graph stale?')
         print('If issue persists, delete describegraph.json and improvecentrality.conf')
+        raise ValueError('No valid candidates')
 
     centralitydeltas, mycurrentcentrality = calculatecentralitydeltas(
                                           availablecandidates, g, mynodekey)
