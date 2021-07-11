@@ -80,7 +80,7 @@ def loadconfig(conffile = 'improvecentrality.conf'):
     config['CandidateFilters'] ={
                         'minchancount': 8,
                         'maxchancount': 10000,
-                        'mincapacitybtc': 0.2,
+                        'mincapacitybtc': 0.3,
                         'maxcapacitybtc': 1000,
                         'minavgchan': 750_000,
                         # Default 4+ >1M channels, 2+ >2M channels

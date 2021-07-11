@@ -11,7 +11,7 @@ from nodeinterface import NodeInterface
 import loadgraph
 import fastcentrality
 
-centralitycheckcount = 11
+centralitycheckcount = 23
 
 def printchannelflags(mynode):
     print('Chanid              kCap  RBal Alias                Flags')
