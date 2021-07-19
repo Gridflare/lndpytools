@@ -115,8 +115,13 @@ def printcentralitydiffs(mynode, myneighbours):
     print('    Us   Them','Alias','Flags')
     for ourcentdelta, theircentdelta, pub_key in peersbyremovalcentralityimpact:
 
+        if abs(base_centralities[pub_key]) > 0:
+            theirpdelta = f'{theircentdelta/base_centralities[pub_key]:+6.1%}'
+        else:
+            theirpdelta = f'{"N/A":>6}'
+
         print(f'{ourcentdelta/mycurrentcentrality:+6.1%}',
-              f'{theircentdelta/base_centralities[pub_key]:+6.1%}',
+              theirpdelta,
               f'{graph.nodes[pub_key]["alias"][:20]:20}',
               *myneighbours[pub_key]['flags']
               )
