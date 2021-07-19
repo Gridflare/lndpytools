@@ -3,7 +3,7 @@
 Plots some node statistics for comparing with neighbours
 This script requires describegraph.json
 """
-
+import sys
 
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -11,13 +11,12 @@ import numpy as np
 
 import loadgraph
 
-node2view = '02e2bf9e87c7ba0ea046882d9b3301ca9a3b049aa920dccbd836c4008eac32d4e5' # Gridflare
-# ~ node2view = '03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f' # ACINQ
-# ~ node2view = '02bb10aaa77a95a358cebb2d112c4de00e47c08f56e89b1acb4487ddd44cc98d6d' # microlancer
-# ~ node2view = '02a04446caa81636d60d63b066f2814cbd3a6b5c258e3172cbdded7a16e2cfff4c' # bitstamp
-# ~ node2view = '02816caed43171d3c9854e3b0ab2cf0c42be086ff1bd4005acc2a5f7db70d83774' # Fold
-# ~ node2view = '033d8656219478701227199cbd6f670335c8d408a92ae88b962c49d4dc0e83e025' # bfx-lnd0
-# ~ node2view = '021c97a90a411ff2b10dc2a8e32de2f29d2fa49d41bfbb52bd416e460db0747d0d' # LOOP
+if len(sys.argv) > 1 and len(sys.argv[1]) == 66:
+    node2view = sys.argv[1]
+else:
+    print('Please enter the pubkey of the node of interest')
+    node2view = input('Pubkey: ')
+
 
 median_payment = 100e3 # sat, Payment size for calculating routing costs
 # Should ignore channels smaller than (2x? 4-5x?) the above
