@@ -469,6 +469,11 @@ if __name__ == '__main__':
     graphfilters = config['GraphFilters']
     g = preparegraph(mynodekey, graphfilters)
 
+    if mynodekey not in g.nodes:
+        print(f'Failed to find a match for pub_key={mynodekey} in the graph')
+        print('Please double check improvecentrality.conf')
+        exit()
+
     if g.degree(mynodekey) < 2:
         print('This script requires your node to have a minimum of 2 stable, public channels')
         print('Your node does not meet this requirement at this time.')
