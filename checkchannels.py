@@ -6,16 +6,20 @@ Connects to LND and checks channels for issues
 from concurrent.futures import ProcessPoolExecutor
 from itertools import repeat
 import time
+from math import ceil
 
 from nodeinterface import NodeInterface
 import loadgraph
 import fastcentrality
 
 centralitycheckcount = 23
+youththresholdweeks = 6
 
 def printchannelflags(mynode):
     print('Chanid              kCap  RBal Alias                Flags')
     myneighbours = {}
+    currentblockheight = mynode.GetInfo().block_height
+
     for chan in mynode.ListChannels().channels:
 
         flags = []
@@ -38,13 +42,23 @@ def printchannelflags(mynode):
         elif chan.total_satoshis_received == 0:
             flags.append('never_rcvd')
 
+        chanblock = chanid >> 40 # Block when the channel was created
+        chanage = currentblockheight - chanblock
+
+        if chanage < 1008*youththresholdweeks:
+            weeks = ceil(chanage/1008)
+            flags.append(f'young<{weeks}w')
+
         if chan.initiator:
             if remote_ratio > 0.95: flags.append('depleted')
         else:
             if remote_ratio < 0.05: flags.append('depleted')
 
+
         print(chanid, f'{kcap:5.0f}{remote_ratio:6.1%} {alias[:20]:20}', *flags)
-        myneighbours[chan.remote_pubkey] = {'flags':flags, 'usage':totalsatsmoved}
+        myneighbours[chan.remote_pubkey] = {'flags':flags,
+                                            'usage':totalsatsmoved,
+                                            'age':chanage}
 
     return myneighbours
 
@@ -72,7 +86,9 @@ def printcentralitydiffs(mynode, myneighbours):
     print(f'Checking up to {centralitycheckcount} least used public channels for removal centrality impact')
     peersbyusage = [i[0] for i in
                     sorted(myneighbours.items(), key=lambda n:n[1]['usage'])
-                    if 'private' not in i[1]['flags']]
+                    if ('private' not in i[1]['flags']
+                        and i[1]['age'] >= 1008*youththresholdweeks)
+                    ]
     underusedpeers = peersbyusage[:centralitycheckcount]
 
     peersbyremovalcentralityimpact = []
