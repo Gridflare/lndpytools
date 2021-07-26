@@ -279,7 +279,7 @@ def calculatefarnessscore(peer2add, myfarness, graphcopy, mynodekey):
     # Nodes that reduce our farness,
     # as well as nodes with a high farness,
     # are prioritized. But especially nodes that have both.
-    farnessscore = np.cbrt(abs(myfarnessdelta)) + theirfarness/1000
+    farnessscore = np.sqrt(abs(myfarnessdelta)) + theirfarness/1000
 
     return farnessscore
 
