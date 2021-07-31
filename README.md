@@ -3,6 +3,8 @@ This repository is a collection of Python scripts that I use to manage my lightn
 
 More scripts will be added over time and there is no guarantee of backwards compatibility.
 
+Some of these scripts, particularly `improvecentrality.py` are resource intensive and should not be run on node hardware.
+
 ## Usage
 
 Download the repository
