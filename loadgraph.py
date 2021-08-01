@@ -169,7 +169,7 @@ class lnGraph(nx.Graph):
         return g
 
     @classmethod
-    def autoload(cls):
+    def autoload(cls, expirehours=8):
         """Intelligently load from a json file or node"""
 
         # Check for json, check age
@@ -178,10 +178,11 @@ class lnGraph(nx.Graph):
             mtime = os.path.getmtime(graphfilename)
 
             # if expired, warn and exit
-            if time.time() - mtime > 8 * 60 * 60:
-                print(graphfilename, 'was found but is more than 8 hours old')
-                print('Please update it or delete to attempt fetching from lnd')
-                exit()
+            if expirehours:
+                if time.time() - mtime > expirehours * 60 * 60:
+                    print(graphfilename, 'was found but is more than 8 hours old')
+                    print('Please update it or delete to attempt fetching from lnd')
+                    exit()
 
             return cls.fromjson()
 

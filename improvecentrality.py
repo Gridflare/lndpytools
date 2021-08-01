@@ -224,24 +224,23 @@ def filterrelevantnodes(graph, graphfilters):
 
         return all(cond)
 
-
-
     gfilt = nx.subgraph_view(graph, filter_node=filter_node, filter_edge=filter_edge)
 
     mostrecentupdate = 0
-    for e in gfilt.edges.values():
+    for e in graph.edges.values():
          if e['last_update'] > mostrecentupdate:
             mostrecentupdate = e['last_update']
 
-    if t - mostrecentupdate > 8*60*60:
-        raise RuntimeError('Graph is more than 8 hours old, results will be innaccurate')
+    print('Latest update in graph:', time.ctime(mostrecentupdate))
+    if t - mostrecentupdate > 6*60*60:
+        raise RuntimeError('Graph is more than 6 hours old, results will be innaccurate')
 
     return gfilt
 
 ## Configuration ends here
 def preparegraph(mynodekey, graphfilters):
 
-    gfull = loadgraph.lnGraph.autoload()
+    gfull = loadgraph.lnGraph.autoload(expirehours=False)
     for newpeer in addchannels:
         gfull.add_edge(mynodekey, newpeer, capacity=newchannelsize, last_update=time.time())
     for newpeer in removechannels:
