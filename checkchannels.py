@@ -63,7 +63,6 @@ def printchannelflags(mynode):
     return myneighbours
 
 
-
 def newcentralityremoval(graphcopy, mynodekey, peer2remove):
     graphcopy.remove_edge(peer2remove, mynodekey)
 
@@ -77,13 +76,8 @@ def newcentralityremoval(graphcopy, mynodekey, peer2remove):
 
     return ourcent, theircent
 
-def printcentralitydiffs(mynode, myneighbours):
-    print('\nFetching graph for further analysis')
-    # Get the graph in networkx format, for reusing tools
-    graph = loadgraph.lnGraph.fromlnd(lndnode=mynode)
-    mynodekey = mynode.GetInfo().identity_pubkey
 
-    print(f'Checking up to {centralitycheckcount} least used public channels for removal centrality impact')
+def printcentralitydiffs(mynode, myneighbours):
     peersbyusage = [i[0] for i in
                     sorted(myneighbours.items(), key=lambda n:n[1]['usage'])
                     if ('private' not in i[1]['flags']
@@ -91,6 +85,16 @@ def printcentralitydiffs(mynode, myneighbours):
                     ]
     underusedpeers = peersbyusage[:centralitycheckcount]
 
+    if len(underusedpeers) == 0:
+        print('All channels are young, skipping removal analysis')
+        return
+
+    print('\nFetching graph for further analysis')
+    # Get the graph in networkx format, for reusing tools
+    graph = loadgraph.lnGraph.fromlnd(lndnode=mynode)
+    mynodekey = mynode.GetInfo().identity_pubkey
+
+    print(f'Checking up to {centralitycheckcount} least used public channels for removal centrality impact')
     peersbyremovalcentralityimpact = []
     with ProcessPoolExecutor() as executor:
         t = time.time()
