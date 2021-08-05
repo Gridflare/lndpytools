@@ -163,6 +163,10 @@ class BasicNodeInterface(MinimalNodeInterface):
 
         return fwdhist
 
+    def ListInvoices(self, **kwargs):
+        """Wrapper required due to inconsistent naming"""
+        return self._stub.ListInvoices(ln.ListInvoiceRequest(**kwargs))
+
 
 class AdvancedNodeInterface(BasicNodeInterface):
     """Class implementing recombinant methods not directly available from LND"""
