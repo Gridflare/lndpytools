@@ -15,6 +15,7 @@ import grpc
 
 from lnrpc_generated import rpc_pb2 as ln, rpc_pb2_grpc as lnrpc
 from lnrpc_generated.walletrpc import walletkit_pb2 as walletrpc, walletkit_pb2_grpc as walletkitstub
+from lnrpc_generated.routerrpc import router_pb2 as routerrpc,router_pb2_grpc as routerstub
 
 
 MSGMAXMB = 50 * 1024 * 1024
@@ -54,6 +55,7 @@ class BaseInterface:
 
         else:
             raise NotImplementedError('Unhandled method stub.(Get)' + cmd)
+
 
 class SubserverRPC(BaseInterface):
     """
@@ -98,6 +100,7 @@ class MinimalNodeInterface(BaseInterface):
         self._rpc = ln
 
         self.wallet = SubserverRPC(walletrpc, walletkitstub.WalletKitStub(grpc_channel))
+        self.router = SubserverRPC(routerrpc, routerstub.RouterStub(grpc_channel))
 
         if not os.path.exists(cachedir):
             os.mkdir(cachedir)
