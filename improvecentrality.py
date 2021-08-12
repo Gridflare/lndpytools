@@ -82,12 +82,14 @@ def loadconfig(conffile = 'improvecentrality.conf'):
                         'maxchancount': 10000,
                         'mincapacitybtc': 0.3,
                         'maxcapacitybtc': 1000,
-                        'minavgchan': 750_000,
-                        # Default 4+ >1M channels, 2+ >2M channels
+                        'minavgchan': 1_000_000,
+                        'minmedchan': 1_000_000,
+                        'minavgchanageblks': 10_000,
+                        # Default 4+ >1.5M channels, 2+ >3M channels
                         'minchannels':'1500k4 3M2',
-                        'minreliability': 0.95,
+                        'minreliability': 0.97,
                         # Node must be ranked better than this for availability on 1ml
-                        'max1mlavailability': 1500,
+                        'max1mlavailability': 2000,
                         # Limit the number of nodes passed to the final (slow!) centrality computation
                         'finalcandidatecount': 11,
                         }
@@ -156,6 +158,20 @@ def determinereliability(candidatekey, graph):
 
     return 1 - node['disabledcount']['receiving'] / graph.degree(candidatekey)
 
+def calcavgchanage(candidatekey, graph, currblockheight):
+
+    ages = []
+    for chankeypair in graph.edges(candidatekey):
+        chan = graph.edges[chankeypair]
+        chanblk = chan['channel_id'] >> 40
+        ageblks = currblockheight - chanblk
+        ages.append(ageblks)
+
+    if len(ages) == 0:
+        return -1
+
+    return np.mean(ages)
+
 def selectinitialcandidates(graph, filters):
     # Conditions a node must meet to be considered for further connection analysis
     minchancount = filters.getint('minchancount')
@@ -163,9 +179,16 @@ def selectinitialcandidates(graph, filters):
     maxchancount = filters.getint('maxchancount')
     maxcapacity = int(filters.getfloat('maxcapacitybtc')*1e8)
     minavgchan = filters.getint('minavgchan')
+    minmedchan = filters.getint('minmedchan')
+    minavgchanageblks = filters.getint('minavgchanageblks')
     minreliability = filters.getfloat('minreliability')
     minchannelsstr = filters['minchannels']
     minchanstiers = minchannelsstr.split()
+
+    # Can't guarantee lnd available to get this
+    currblockheight = requests.get(
+                        "https://mempool.space/api/blocks/tip/height"
+                        ).json()
 
     def filtercandidatenodes(n, graph, filters):
         # This is the inital filtering pass, it does not include 1ML or centrality
@@ -179,13 +202,17 @@ def selectinitialcandidates(graph, filters):
                 graph.degree(nkey) > 0, # Must have unfiltered channels
                 minchancount <= n['num_channels'] <= maxchancount,
                 mincapacity <= n['capacity'] <= maxcapacity,
-                n['capacity']/n['num_channels'] > minavgchan, # avg chan size
+                n['capacity']/n['num_channels'] >= minavgchan, # avg chan size
+                np.median(n['capacities']) >= minmedchan,
                 )
-        # Filters that require more computation are excluded from cond
-        # in order to get a slight performance boost from short circuiting
+
+        # Filters that require more computation or are invalid for tiny
+        # nodes are excluded from cond in order to get safety and a
+        # slight performance boost from short circuiting
 
         return (all(cond)
                 and validatenodechancapacities(n['capacities'], minchanstiers)
+                and calcavgchanage(nkey, graph, currblockheight) >= minavgchanageblks
                 and determinereliability(nkey, graph) >= minreliability
                 )
 
