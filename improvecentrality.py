@@ -34,6 +34,7 @@ from concurrent.futures import ProcessPoolExecutor
 import os
 from itertools import repeat
 import configparser
+import argparse
 
 import requests
 import networkx as nx
@@ -41,6 +42,7 @@ from networkx.algorithms import centrality
 from networkx.algorithms.shortest_paths.unweighted import single_source_shortest_path_length
 import pandas as pd
 import numpy as np
+from scipy import stats
 
 import loadgraph
 import fastcentrality
@@ -104,6 +106,13 @@ def loadconfig(conffile = 'improvecentrality.conf'):
     print('Please complete the config and rerun')
     exit()
 
+
+parser = argparse.ArgumentParser(description='Suggests peers based on centrality impact')
+parser.add_argument('--conffile', type=str, default='improvecentrality.conf',
+                    help='Specify an alternate config location')
+parser.add_argument('--validate', action="store_true",
+                    help='Runs a much longer analysis and reports on the heuristic')
+
 def validatenodechancapacities(chancaps, minchanstiers):
     """
     This function allows more granular selection of candidates than total or
@@ -163,7 +172,7 @@ def calcavgchanage(candidatekey, graph, currblockheight):
     ages = []
     for chankeypair in graph.edges(candidatekey):
         chan = graph.edges[chankeypair]
-        chanblk = chan['channel_id'] >> 40
+        chanblk = int(chan['channel_id']) >> 40
         ageblks = currblockheight - chanblk
         ages.append(ageblks)
 
@@ -184,6 +193,8 @@ def selectinitialcandidates(graph, filters):
     minreliability = filters.getfloat('minreliability')
     minchannelsstr = filters['minchannels']
     minchanstiers = minchannelsstr.split()
+
+    assert minavgchanageblks is not None, 'Config is missing values, try recreating it'
 
     # Can't guarantee lnd available to get this
     currblockheight = requests.get(
@@ -465,12 +476,18 @@ def printresults(centralitydeltas, mycurrentcentrality):
     cols = 'Δcentr','MFscor','Avail','Relbty','Alias','Pubkey'
     print(*cols)
     exportdict = {k:[] for k in cols}
+    cdeltascores = []
+    mfscores = []
+
     for nkey, cdelta in sorted(centralitydeltas.items(), key=lambda i:-i[1]):
         nodedata = g.nodes[nkey]
         alias = nodedata['alias']
         mfscore = farnesscores[nkey]
         arank = get1mlstats(nkey)['noderank']['availability']
         reliability = 1 - nodedata['disabledcount']['receiving']/g.degree(nkey)
+
+        cdeltascores.append(cdelta)
+        mfscores.append(mfscore)
 
         cdeltastr = f'{cdelta/mycurrentcentrality:6.1%}'
         relbtystr = f'{reliability:6.1%}'
@@ -484,13 +501,30 @@ def printresults(centralitydeltas, mycurrentcentrality):
         print(f'{cdelta/mycurrentcentrality:+6.1%} {mfscore:6.2f} {arank:5}',
                 relbtystr, alias, nkey)
 
+    if args.validate:
+        reg = stats.linregress(cdeltascores, mfscores)
+        r = round(reg.rvalue, 3)
+        print('Heuristic validation found an r value of', r)
+        if r < 0.7:
+            print('r is low, you will need a higher finalcandidatecount to compensate')
+        elif r < 0.8:
+            print('r is on the low end of the expected range for this heuristic')
+            print('consider a higher finalcandidatecount to compensate')
+        elif r < 0.9:
+            print('r is on the high end of the expected range for this heuristic')
+        else:
+            print('r is better than expected for this heuristic')
+
     return exportdict
 
 
 if __name__ == '__main__':
-    config = loadconfig()
+    args = parser.parse_args()
+    config = loadconfig(args.conffile)
     mynodekey = config['Node']['pub_key']
     filters = config['CandidateFilters']
+    if args.validate:
+        filters['finalcandidatecount'] = '400'
 
     graphfilters = config['GraphFilters']
     g = preparegraph(mynodekey, graphfilters)

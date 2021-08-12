@@ -6,3 +6,4 @@ python-igraph
 matplotlib
 grpcio
 grpcio-tools
+scipy
