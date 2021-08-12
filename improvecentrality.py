@@ -84,7 +84,7 @@ def loadconfig(conffile = 'improvecentrality.conf'):
                         'maxcapacitybtc': 1000,
                         'minavgchan': 1_000_000,
                         'minmedchan': 1_000_000,
-                        'minavgchanageblks': 10_000,
+                        'minavgchanageblks': 4_000,
                         # Default 4+ >1.5M channels, 2+ >3M channels
                         'minchannels':'1500k4 3M2',
                         'minreliability': 0.97,
