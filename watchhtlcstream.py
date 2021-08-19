@@ -29,10 +29,9 @@ def getAlias4ChanID(chanid):
 events = mynode.router.SubscribeHtlcEvents()
 print('Successfully subscribed, now listening for events')
 for i, event in enumerate(events):
+
     inchanid = event.incoming_channel_id
     outchanid = event.outgoing_channel_id
-    inchan = mychannels[inchanid]
-    outchan = mychannels[outchanid]
 
     outcome = event.ListFields()[-1][0].name
     eventinfo = getattr(event, outcome)
@@ -48,20 +47,39 @@ for i, event in enumerate(events):
     eventtype = event.EventType.keys()[event.event_type]
     timetext = time.ctime(event.timestamp_ns/1e9)
 
+    note = ''
     inalias = outalias = 'N/A'
+    inrbal = incap = outlbal = outcap = '-'
     if eventtype != 'SEND':
         inalias = getAlias4ChanID(inchanid)
+        inchan = mychannels[inchanid]
+        inrbal = inchan.remote_balance
+        incap = inchan.capacity
+
     if eventtype != 'RECEIVE':
         outalias = getAlias4ChanID(outchanid)
+        outchan = mychannels[outchanid]
+        outlbal = outchan.local_balance
+        outcap = outchan.capacity
+
+    if outcome == 'link_fail_event':
+        if eventtype == 'RECEIVE' and eventinfo.failure_string == "invoice not found":
+                note = 'Probe detected.'
+        elif eventtype == 'FORWARD':
+            if amount > inrbal:
+                note += f'Insufficient remote liquidity with {inalias}.'
+            elif amount > outlbal:
+                note += f'Insufficient local liquidity with {outalias}.'
 
     print(eventtype, timetext,
           amount,'for', fee,
-          inalias, f'{inchan.remote_balance}/{inchan.capacity}',
+          inalias, f'{inrbal}/{incap}',
           '➜',
-          outalias, f'{outchan.local_balance}/{outchan.capacity}',
+          outalias, f'{outlbal}/{outcap}',
           # ~ inchanid, '➜', outchanid,
           outcome,
           # ~ eventinfo,
+          note,
             )
 
     with open('htlcstream.csv', 'a', newline='') as f:
@@ -73,12 +91,12 @@ for i, event in enumerate(events):
                              'Balance_in','Capacity_in',
                              'Balance_out', 'Capacity_out',
                              'Chanid_in','Chanid_out',
-                             'Outcome', 'Details'])
+                             'Outcome', 'Details', 'Note'])
 
         writer.writerow([eventtype, timetext, amount, fee,
                          inalias, outalias,
-                         inchan.remote_balance, inchan.capacity,
-                         outchan.local_balance, outchan.capacity,
-                         str(inchanid), str(outchanid),
-                         outcome, eventinfo])
+                         inrbal, incap,
+                         outlbal, outcap,
+                         f'{inchanid}', f'{outchanid}',
+                         outcome, eventinfo, note])
 
