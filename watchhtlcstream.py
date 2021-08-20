@@ -65,7 +65,7 @@ for i, event in enumerate(events):
     if outcome == 'link_fail_event':
         if eventtype == 'RECEIVE' and eventinfo.failure_string == "invoice not found":
                 note = 'Probe detected.'
-        elif eventtype == 'FORWARD':
+        elif eventtype == 'FORWARD' and outcome == 'forward_event':
             if amount > inrbal:
                 note += f'Insufficient remote liquidity with {inalias}.'
             elif amount > outlbal:
