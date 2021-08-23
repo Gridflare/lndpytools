@@ -24,6 +24,8 @@ def getChanInfo(chanid):
         else:
             print('ERROR: Unknown chanid', chanid)
             return 'ERROR: Unknown'
+    else:
+        return mychannels[chanid]
 
 def getAlias4ChanID(chanid):
     chan = getChanInfo(chanid)
