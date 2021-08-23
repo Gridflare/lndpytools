@@ -54,13 +54,13 @@ for i, event in enumerate(events):
         note = ''
         inalias = outalias = 'N/A'
         inrbal = incap = outlbal = outcap = '-'
-        if eventtype != 'SEND':
+        if inchanid:
             inalias = getAlias4ChanID(inchanid)
             inchan = getChanInfo(inchanid)
             inrbal = inchan.remote_balance
             incap = inchan.capacity
 
-        if eventtype != 'RECEIVE':
+        if outchanid:
             outalias = getAlias4ChanID(outchanid)
             outchan = getChanInfo(outchanid)
             outlbal = outchan.local_balance
@@ -105,5 +105,6 @@ for i, event in enumerate(events):
                              outcome, eventinfo, note])
 
     except Exception as e:
-        print('Excpetion whil handling event.', e)
+        print('Exception while handling event.', e)
+        print(event)
         traceback.print_exc()
