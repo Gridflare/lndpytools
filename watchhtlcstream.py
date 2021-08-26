@@ -32,81 +32,111 @@ def getAlias4ChanID(chanid):
     alias = mynode.getAlias(chan.remote_pubkey)
     return alias
 
-events = mynode.router.SubscribeHtlcEvents()
-print('Successfully subscribed, now listening for events')
-for i, event in enumerate(events):
-    try:
-        inchanid = event.incoming_channel_id
-        outchanid = event.outgoing_channel_id
+def getFailureAttribute(einfo, attr):
+    i = getattr(einfo, attr)
+    x = einfo.DESCRIPTOR.fields_by_name[attr]
 
-        outcome = event.ListFields()[-1][0].name
-        eventinfo = getattr(event, outcome)
+    return x.enum_type.values_by_number[i].name
 
-        amount = ' - '
-        fee = ' - '
-        if outcome == 'forward_event':
-            amt_msat = eventinfo.info.outgoing_amt_msat
-            amount = amt_msat/1000
-            fee = eventinfo.info.incoming_amt_msat - amt_msat
-            fee /= 1000
+def main():
+    events = mynode.router.SubscribeHtlcEvents()
+    print('Successfully subscribed, now listening for events')
+    for i, event in enumerate(events):
+        try:
+            inchanid = event.incoming_channel_id
+            outchanid = event.outgoing_channel_id
 
-        eventtype = event.EventType.keys()[event.event_type]
-        timetext = time.ctime(event.timestamp_ns/1e9)
+            outcome = event.ListFields()[-1][0].name
+            eventinfo = getattr(event, outcome)
+            eventtype = event.EventType.keys()[event.event_type]
+            timetext = time.ctime(event.timestamp_ns/1e9)
 
-        note = ''
-        inalias = outalias = 'N/A'
-        inrbal = incap = outlbal = outcap = '-'
-        if inchanid:
-            inalias = getAlias4ChanID(inchanid)
-            inchan = getChanInfo(inchanid)
-            inrbal = inchan.remote_balance
-            incap = inchan.capacity
+            inalias = outalias = 'N/A'
+            inrbal = incap = outlbal = outcap = '-'
+            if inchanid:
+                inalias = getAlias4ChanID(inchanid)
+                inchan = getChanInfo(inchanid)
+                inrbal = inchan.remote_balance
+                incap = inchan.capacity
 
-        if outchanid:
-            outalias = getAlias4ChanID(outchanid)
-            outchan = getChanInfo(outchanid)
-            outlbal = outchan.local_balance
-            outcap = outchan.capacity
+            if outchanid:
+                outalias = getAlias4ChanID(outchanid)
+                outchan = getChanInfo(outchanid)
+                outlbal = outchan.local_balance
+                outcap = outchan.capacity
 
-        if outcome == 'link_fail_event':
-            if eventtype == 'RECEIVE' and eventinfo.failure_string == "invoice not found":
-                    note = 'Probe detected.'
-            elif eventtype == 'FORWARD' and outcome == 'forward_event':
-                if amount > inrbal:
-                    note += f'Insufficient remote liquidity with {inalias}.'
+            # Extract forward amount data, if available
+            amount = fee = '-'
+            if hasattr(eventinfo, 'info'):
+                if eventinfo.info.outgoing_amt_msat > 0:
+                    amt_msat = eventinfo.info.outgoing_amt_msat
+                    amount = amt_msat/1000
+                    fee = (eventinfo.info.incoming_amt_msat - amt_msat)/1000
+
+                elif eventinfo.info.incoming_amt_msat > 0:
+                    amt_msat = eventinfo.info.incoming_amt_msat
+                    amount = amt_msat/1000
+
+            # Add a note to quickly point out common scenarios
+            note = ''
+            if outcome == 'forward_event':
+                if not eventtype == 'SEND' and amount > inrbal:
+                    note = f'Insufficient remote liquidity with {inalias}.'
                 elif amount > outlbal:
-                    note += f'Insufficient local liquidity with {outalias}.'
+                    note = f'Insufficient local liquidity with {outalias}.'
 
-        print(eventtype, timetext,
-              amount,'for', fee,
-              inalias, f'{inrbal}/{incap}',
-              '➜',
-              outalias, f'{outlbal}/{outcap}',
-              # ~ inchanid, '➜', outchanid,
-              outcome,
-              # ~ eventinfo,
-              note,
-                )
+            elif outcome == 'link_fail_event':
+                failure_string = eventinfo.failure_string
+                failure_detail = getFailureAttribute(eventinfo, 'failure_detail')
+                wire_failure = getFailureAttribute(eventinfo, 'wire_failure')
 
-        with open('htlcstream.csv', 'a', newline='') as f:
-            writer = csv.writer(f)
+                if eventtype == 'RECEIVE' and failure_detail == 'UNKNOWN_INVOICE':
+                    note += 'Probe detected. '
 
-            if i % 30 == 0:
-                writer.writerow(['Eventtype', 'Timestamp', 'Amount', 'Fee',
-                                 'Alias_in','Alias_out',
-                                 'Balance_in','Capacity_in',
-                                 'Balance_out', 'Capacity_out',
-                                 'Chanid_in','Chanid_out',
-                                 'Outcome', 'Details', 'Note'])
+                note += f'Failure(wire: {wire_failure}, detail: {failure_detail}, string: {failure_string})'
 
-            writer.writerow([eventtype, timetext, amount, fee,
-                             inalias, outalias,
-                             inrbal, incap,
-                             outlbal, outcap,
-                             f'{inchanid}', f'{outchanid}',
-                             outcome, eventinfo, note])
+            elif outcome == 'settle_event':
+                note = 'Forward successful.'
 
-    except Exception as e:
-        print('Exception while handling event.', e)
-        print(event)
-        traceback.print_exc()
+            print(eventtype,
+                  event.incoming_htlc_id,
+                  event.outgoing_htlc_id,
+                  timetext, amount,'for', fee,
+                  inalias, f'{inrbal}/{incap}',
+                  '➜',
+                  outalias, f'{outlbal}/{outcap}',
+                  # ~ inchanid, '➜', outchanid,
+                  outcome,
+                  # ~ eventinfo,
+                  note,
+                    )
+
+            with open('htlcstream.csv', 'a', newline='') as f:
+                writer = csv.writer(f)
+
+                if i % 30 == 0:
+                    writer.writerow(['Eventtype', 'Htlc_id_in', 'Htlc_id_out',
+                                    'Timestamp', 'Amount', 'Fee',
+                                     'Alias_in','Alias_out',
+                                     'Balance_in','Capacity_in',
+                                     'Balance_out', 'Capacity_out',
+                                     'Chanid_in','Chanid_out',
+                                     'Outcome', 'Details', 'Note'])
+
+                writer.writerow([eventtype,
+                                 event.incoming_htlc_id,
+                                 event.outgoing_htlc_id,
+                                 timetext, amount, fee,
+                                 inalias, outalias,
+                                 inrbal, incap,
+                                 outlbal, outcap,
+                                 f"{inchanid}", f"{outchanid}",
+                                 outcome, eventinfo, note])
+
+        except Exception as e:
+            print('Exception while handling event.', e)
+            print(event)
+            traceback.print_exc()
+
+if __name__ == '__main__':
+    main()
