@@ -21,11 +21,11 @@ Install requirements
 `$ pip3 install -r requirements.txt --user`
 
 ### With LND gRPC
-Most scripts connect to lnd directly after some setup, create the config file with
+Most scripts use gRPC to connect to lnd directly after some setup, create the config file with
 
 `$ python3 nodeinterface.py`
 
-Double check `node.conf` and rerun nodeinterface, it will say "`Connected to node <alias>`" if everything is correct
+Double check `node.conf` and rerun nodeinterface, it will say `Connected to node <alias>` if everything is correct
 
 ### With describegraph.json
 Instead of connecting to lnd, some scripts can use a fresh copy of `describegraph.json` in the lndpytools directory.
