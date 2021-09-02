@@ -80,10 +80,7 @@ def main():
             # Add a note to quickly point out common scenarios
             note = ''
             if outcome == 'forward_event':
-                if not eventtype == 'SEND' and amount > inrbal:
-                    note = f'Insufficient remote liquidity with {inalias}.'
-                elif amount > outlbal:
-                    note = f'Insufficient local liquidity with {outalias}.'
+                note = 'HTLC in flight.'
 
             elif outcome == 'link_fail_event':
                 failure_string = eventinfo.failure_string
@@ -95,7 +92,7 @@ def main():
 
                 note += f'Failure(wire: {wire_failure}, detail: {failure_detail}, string: {failure_string})'
 
-            elif outcome == 'settle_event':
+            elif outcome == 'settle_event' and  eventtype == 'FORWARD':
                 note = 'Forward successful.'
 
             print(eventtype,
