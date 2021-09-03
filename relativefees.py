@@ -3,13 +3,18 @@
 Check how our fees compare to other fees peers are charged
 This script requires describegraph.json
 """
+import sys
 
 import numpy as np
 import networkx as nx
 
 import loadgraph
 
-mynodekey = '02e2bf9e87c7ba0ea046882d9b3301ca9a3b049aa920dccbd836c4008eac32d4e5' # Gridflare
+if len(sys.argv) > 1 and len(sys.argv[1]) == 66:
+    mynodekey = sys.argv[1]
+else:
+    print('Please enter the pubkey of the node of interest')
+    mynodekey = input('Pubkey: ')
 
 #  Payment size for calculating routing costs
 median_payment = 100e3 # sat
