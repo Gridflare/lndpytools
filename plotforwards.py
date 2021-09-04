@@ -29,6 +29,8 @@ parser.add_argument('--perpeer', action="store_true",
                         help='Collect redundant channels by peer')
 parser.add_argument('--nolabels', action="store_true",
                         help='Do not plot grid labels, for privacy when sharing #nodeart')
+parser.add_argument('--nocbar', action="store_true",
+                        help='Do not plot colourbar, for privacy when sharing #nodeart')
 parser.add_argument('--shuffle', action="store_true",
                         help='Randomize order of channels, for privacy when sharing #nodeart')
 
@@ -164,8 +166,9 @@ else:
     plt.setp(ax.get_xticklabels(), rotation=-45, ha="left",
              rotation_mode="anchor")
 
-# Add colorbar
-cbar = ax.figure.colorbar(im, ax=ax)
+if not args.nocbar:
+    # Add colorbar
+    cbar = ax.figure.colorbar(im, ax=ax)
 
 if not args.nogrid:
     ax.grid(which="minor", color="w", linestyle='-', linewidth=2)
