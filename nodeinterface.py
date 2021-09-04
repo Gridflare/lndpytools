@@ -148,23 +148,30 @@ class BasicNodeInterface(MinimalNodeInterface):
         return self._stub.DescribeGraph(
             ln.ChannelGraphRequest(include_unannounced=include_unannounced))
 
-    # ~ def getForwardingHistory(self, starttime):
-        # ~ """Same as the bare metal method, but this one pages automatically"""
-        # ~ fwdhist = []
-        # ~ offset = 0
+    def getForwardingHistory(self, starttime):
+        """Same as the bare metal method, but this one pages automatically"""
+        fwdhist = []
+        offset = 0
 
-        # ~ def getfwdbatch(starttime, pageOffset):
-            # ~ fwdbatch = self.ForwardingHistory(
-                        # ~ start_time=starttime,
-                        # ~ index_offset=pageOffset,
-                        # ~ ).forwarding_events
-            # ~ return fwdbatch
+        def getfwdbatch(starttime, pageOffset):
+            fwdbatch = self.ForwardingHistory(
+                        start_time=starttime,
+                        index_offset=pageOffset,
+                        ).forwarding_events
+            return fwdbatch
 
+        # requires Python 3.8+
         # ~ while (fwdbatch := getfwdbatch(starttime, offset)):
             # ~ offset += len(fwdbatch)
             # ~ fwdhist.extend(fwdbatch)
 
-        # ~ return fwdhist
+        fwdbatch = getfwdbatch(starttime, offset)
+        while fwdbatch:
+            offset += len(fwdbatch)
+            fwdhist.extend(fwdbatch)
+            fwdbatch = getfwdbatch(starttime, offset)
+
+        return fwdhist
 
     def ListInvoices(self, **kwargs):
         """Wrapper required due to inconsistent naming"""
