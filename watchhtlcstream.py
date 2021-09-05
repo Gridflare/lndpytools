@@ -38,6 +38,13 @@ def getFailureAttribute(einfo, attr):
 
     return x.enum_type.values_by_number[i].name
 
+forward_event_cache = {}
+def popamountsfromcache(key):
+    amount = forward_event_cache[key]['amt']
+    fee = forward_event_cache[key]['fee']
+    del forward_event_cache[key]
+    return amount, fee
+
 def main():
     events = mynode.router.SubscribeHtlcEvents()
     print('Successfully subscribed, now listening for events')
@@ -50,6 +57,9 @@ def main():
             eventinfo = getattr(event, outcome)
             eventtype = event.EventType.keys()[event.event_type]
             timetext = time.ctime(event.timestamp_ns/1e9)
+
+            in_htlc_id = event.incoming_htlc_id
+            out_htlc_id = event.outgoing_htlc_id
 
             inalias = outalias = 'N/A'
             inrbal = incap = outlbal = outcap = '-'
@@ -79,8 +89,16 @@ def main():
 
             # Add a note to quickly point out common scenarios
             note = ''
+            fwdcachekey = (in_htlc_id, out_htlc_id, inchanid, outchanid)
             if outcome == 'forward_event':
                 note = 'HTLC in flight.'
+                forward_event_cache[fwdcachekey] = {'amt':amount, 'fee':fee}
+
+            elif outcome == 'forward_fail_event':
+                note = 'Non-local fwding failure.'
+                if fwdcachekey in forward_event_cache:
+                    # This data is only found in forward_event, need to fetch it from cache
+                    amount, fee = popamountsfromcache(fwdcachekey)
 
             elif outcome == 'link_fail_event':
                 failure_string = eventinfo.failure_string
@@ -94,10 +112,12 @@ def main():
 
             elif outcome == 'settle_event' and  eventtype == 'FORWARD':
                 note = 'Forward successful.'
+                if fwdcachekey in forward_event_cache:
+                    # This data is only found in forward_event, need to fetch it from cache
+                    amount, fee = popamountsfromcache(fwdcachekey)
 
             print(eventtype,
-                  event.incoming_htlc_id,
-                  event.outgoing_htlc_id,
+                  in_htlc_id, out_htlc_id,
                   timetext, amount,'for', fee,
                   inalias, f'{inrbal}/{incap}',
                   '➜',
