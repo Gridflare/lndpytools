@@ -325,7 +325,7 @@ def calculatefarnessscores(candidatekeys, graph, mynodekey):
 
     myfarness = 1/fastcentrality.closeness(graph, mynodekey)
 
-    print('Running modified farness score calculations')
+    print('Running modified fairness score calculations')
     t = time.time()
     with ProcessPoolExecutor() as executor:
         scoreresults = executor.map(calculatefarnessscore,
