@@ -473,6 +473,12 @@ def calculatecentralitydeltas(candidatekeys, graph, mynodekey):
     return centralitydeltas, myoldcentrality
 
 def printresults(centralitydeltas, mycurrentcentrality):
+    print('printing formatted pubkeys to use with BOS')
+    print('bos open $(cat centrality_pubkeys.txt)')
+    pubkeys = [f'{nkey} --amount=5000000' for nkey, _ in sorted(centralitydeltas.items(), key=lambda i:-i[1])]
+    with open("centrality_pubkeys.txt", "w") as file:
+        file.write('\n'.join(pubkeys))
+
     cols = 'Δcentr','MFscor','Avail','Relbty','Alias','Pubkey'
     print(*cols)
     exportdict = {k:[] for k in cols}
