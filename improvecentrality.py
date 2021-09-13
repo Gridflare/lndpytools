@@ -63,7 +63,7 @@ removechannels = [
 ]
 
 
-def loadconfig(conffile='improvecentrality.conf'):
+def load_config(conffile='improvecentrality.conf'):
     if os.path.isfile(conffile):
         config = configparser.ConfigParser()
         config.read(conffile)
@@ -530,7 +530,7 @@ def print_results(centralitydeltas, mycurrentcentrality):
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    config = loadconfig(args.conffile)
+    config = load_config(args.conffile)
     mynodekey = config['Node']['pub_key']
     filters = config['CandidateFilters']
     if args.validate:
