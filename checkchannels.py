@@ -9,7 +9,7 @@ import time
 from math import ceil
 
 from nodeinterface import NodeInterface
-import loadgraph
+import lnGraph
 import fastcentrality
 
 centralitycheckcount = 23
@@ -91,7 +91,7 @@ def printcentralitydiffs(mynode, myneighbours):
 
     print('\nFetching graph for further analysis')
     # Get the graph in networkx format, for reusing tools
-    graph = loadgraph.lnGraph.fromlnd(lndnode=mynode)
+    graph = lnGraph.lnGraph.fromlnd(lndnode=mynode)
     mynodekey = mynode.GetInfo().identity_pubkey
 
     print(f'Checking up to {centralitycheckcount} least used public channels for removal centrality impact')

@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 
-import loadgraph
+import lnGraph
 
 if len(sys.argv) > 1 and len(sys.argv[1]) == 66:
     node2view = sys.argv[1]
@@ -22,7 +22,7 @@ median_payment = 100e3 # sat, Payment size for calculating routing costs
 # Should ignore channels smaller than (2x? 4-5x?) the above
 feeceiling = 6000 #sats, ignore fees charge more than this, unidirectional channel?
 
-g = loadgraph.lnGraph.autoload()
+g = lnGraph.lnGraph.autoload()
 # ~ print(list(g.nodes.keys())[0])
 nx.freeze(g)
 

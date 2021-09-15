@@ -8,7 +8,7 @@ import sys
 import numpy as np
 import networkx as nx
 
-import loadgraph
+import lnGraph
 
 if len(sys.argv) > 1 and len(sys.argv[1]) == 66:
     mynodekey = sys.argv[1]
@@ -23,7 +23,7 @@ median_payment = 100e3 # sat
 minchancapacity = median_payment*4
 
 print('Loading graph')
-g = loadgraph.lnGraph.autoload()
+g = lnGraph.lnGraph.autoload()
 nx.freeze(g)
 
 def getNodesChannels(pubkey):
