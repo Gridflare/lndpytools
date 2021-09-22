@@ -28,7 +28,8 @@ for invoice in invoices:
             htlc_records.append(custom_records)
 
     if htlc_records:
-        print('\nReceived on',time.ctime(invoice.settle_date))
+        print('\nReceived',invoice.value_msat/1000,'sats on',time.ctime(invoice.settle_date))
+        print('-'*40)
 
         for custom_records in htlc_records:
             for k, v in custom_records.items():
