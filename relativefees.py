@@ -8,7 +8,7 @@ import sys
 import numpy as np
 import networkx as nx
 
-import lnGraph
+from lnGraph import lnGraph
 
 if len(sys.argv) > 1 and len(sys.argv[1]) == 66:
     mynodekey = sys.argv[1]
@@ -17,17 +17,19 @@ else:
     mynodekey = input('Pubkey: ')
 
 #  Payment size for calculating routing costs
-median_payment = 100e3 # sat
+median_payment = 100e3  # sat
 
 # ignore the fees on channels smaller than this
-minchancapacity = median_payment*4
+minchancapacity = median_payment * 4
 
 print('Loading graph')
-g = lnGraph.lnGraph.autoload()
+g = lnGraph.autoload()
 nx.freeze(g)
+
 
 def getNodesChannels(pubkey):
     pass
+
 
 inboundfees = {}
 print('Checking peer fees')
@@ -46,8 +48,8 @@ for peerkey in g.adj[mynodekey]:
             if any((peerchan['capacity'] < minchancapacity,
                     peerchan['node1_policy'] is None,
                     peerchan['node2_policy'] is None,
-                )):
-                continue # ignore this insignificant channel
+                    )):
+                continue  # ignore this insignificant channel
 
             if peerpeerkey == peerchan['node1_pub']:
                 inboundrate = peerchan['node1_policy']['fee_rate_milli_msat']
@@ -58,9 +60,9 @@ for peerkey in g.adj[mynodekey]:
             else:
                 assert False
 
-            thispairinfees.append(int(inboundbase)/1e3 + int(inboundrate)/1e6 * median_payment)
+            thispairinfees.append(int(inboundbase) / 1e3 + int(inboundrate) / 1e6 * median_payment)
 
-        if len(thispairinfees) > 0: # Can happen with outbound-only peers
+        if len(thispairinfees) > 0:  # Can happen with outbound-only peers
             inboundfees[peerkey].append(np.median(thispairinfees))
 
 print('Checking our fees')
@@ -76,7 +78,7 @@ for peerkey in g.adj[mynodekey]:
     for chan in commonchannels:
 
         if chan['capacity'] < minchancapacity:
-            continue # can't check a channel we skipped earlier
+            continue  # can't check a channel we skipped earlier
 
         if mynodekey == chan['node1_pub']:
             myfeerate = chan['node1_policy']['fee_rate_milli_msat']
@@ -87,20 +89,14 @@ for peerkey in g.adj[mynodekey]:
         else:
             assert False
 
-        myfee = (int(myfeebase)/1e3 + int(myfeerate)/1e6 * median_payment)
+        myfee = (int(myfeebase) / 1e3 + int(myfeerate) / 1e6 * median_payment)
         myfeep = np.sum(peerinfees < myfee) / len(peerinfees)
         myfeepercentiles.append(myfeep)
 
-        print(f"{myfee:6.1f} {myfeep:5.1%} {chan['capacity']/1e3:5.0f}",peer['alias'])
-
+        print(f"{myfee:6.1f} {myfeep:5.1%} {chan['capacity'] / 1e3:5.0f}", peer['alias'])
 
 print('\n STATS')
 print(f'Max {max(myfeepercentiles):.1%}')
 print(f'Min {min(myfeepercentiles):.1%}')
 print(f'Median  {np.median(myfeepercentiles):.1%}')
 print(f'Average {np.mean(myfeepercentiles):.1%}')
-
-
-
-
-
