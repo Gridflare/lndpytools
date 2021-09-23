@@ -3,31 +3,21 @@ import time
 
 
 class GraphFilter:
-    # Configuration starts here
-
-    # Node pubkeys that I plan to open a channel to, count these as already formed.
-    channels_to_add = [
-
-    ]
-
     # Assumed size of the new channels, should not currently have an effect
     channel_size = 2e6
 
-    # Node pubkeys that I plan to close all channels to, count these as nonexistent.
-    channels_to_remove = [
-
-    ]
-
-    def __init__(self, graph, mynodekey, graph_filters):
+    def __init__(self, graph, mynodekey, graph_filters, channels_to_add=None, channels_to_remove=None):
         self.graph = graph
         self.graph_filters = graph_filters
         self.pub_key = mynodekey
         # Configuration ends here
         # self.full_g = self.autoload(expirehours=False)
-        for peer in self.channels_to_add:
-            self.graph.add_edge(mynodekey, peer, capacity=self.channel_size, last_update=time.time())
-        for peer in self.channels_to_remove:
-            self.graph.remove_edge(mynodekey, peer)
+        if channels_to_add:
+            for peer in channels_to_add:
+                self.graph.add_edge(mynodekey, peer, capacity=self.channel_size, last_update=time.time())
+        if channels_to_remove:
+            for peer in channels_to_remove:
+                self.graph.remove_edge(mynodekey, peer)
         nx.freeze(self.graph)
 
         print('Loaded graph. Number of nodes:', self.graph.number_of_nodes(), 'Edges:', self.graph.number_of_edges())
