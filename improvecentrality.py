@@ -33,58 +33,13 @@ from itertools import repeat
 import pandas as pd
 import numpy as np
 from scipy import stats
-import configparser
 
 from GraphFilter import GraphFilter
 from CandidateFilter import CandidateFilter
 from lnGraph import lnGraph
 from fastcentrality import *
-from common_utils import *
+from bc_utils import *
 import time
-
-
-def load_config(config_file='improvecentrality.conf'):
-    if os.path.isfile(config_file):
-        config = configparser.ConfigParser()
-        config.read(config_file)
-        return config
-
-    print('Config not found, will create', config_file)
-    config = configparser.ConfigParser()
-    config['Node'] = {'pub_key': 'yournodepubkeyhere'}
-    config['GraphFilters'] = {
-        # Ignore channels smaller than this during analysis,
-        # unless they connect to us. Higher values improve
-        # script performance and odds of good routes.
-        # However lower values give numbers closer to reality
-        'minrelevantchan': 500_000,
-    }
-    config['CandidateFilters'] = {
-        'minchancount': 8,
-        'maxchancount': 10000,
-        'mincapacitybtc': 0.3,
-        'maxcapacitybtc': 1000,
-        'minavgchan': 1_000_000,
-        'minmedchan': 1_000_000,
-        'minavgchanageblks': 4_000,
-        # Default 4+ >1.5M channels, 2+ >3M channels
-        'minchannels': '1500k4 3M2',
-        'minreliability': 0.97,
-        # Node must be ranked better than this for availability on 1ml
-        'max1mlavailability': 2000,
-        # Limit the number of nodes passed to the final (slow!) centrality computation
-        'finalcandidatecount': 11,
-    }
-    config['Other'] = {
-        # Export results to this CSV file. Set to None or '' to disable
-        'csvexportname': 'newchannels.csv',
-    }
-
-    with open(config_file, 'w') as cf:
-        config.write(cf)
-
-    print('Please complete the config and rerun')
-    exit()
 
 
 def get_farness_score(peer2add, myfarness, graphcopy, mynodekey):
