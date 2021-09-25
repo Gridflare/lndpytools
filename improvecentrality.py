@@ -205,7 +205,7 @@ def main():
     config = load_config(args.conffile)
     pub_key = config['Node']['pub_key']
 
-    graph_filters = config['graph_filters']
+    graph_filters = config['GraphFilters']
     graph = lnGraph.autoload(expirehours=False)
 
     filtered_graph = GraphFilter(graph, pub_key, graph_filters).filtered_g
@@ -219,7 +219,7 @@ def main():
         exit()
 
     print('Performing analysis for', filtered_graph.nodes[pub_key]['alias'])
-    candidate_filters = config['candidate_filters']
+    candidate_filters = config['CandidateFilters']
     candidate_filters["pub_key"] = pub_key
     if args.validate:
         candidate_filters['finalcandidatecount'] = '400'
