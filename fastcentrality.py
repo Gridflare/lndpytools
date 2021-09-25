@@ -7,7 +7,6 @@ import networkx as nx
 import igraph
 
 
-
 def nx2ig(nxgraph):
     """
     Convert networkx graph to igraph
@@ -16,7 +15,7 @@ def nx2ig(nxgraph):
     """
 
     nxnodekeys = nxgraph.nodes
-    nxnodemap = {nk:i for i, nk in enumerate(nxnodekeys)}
+    nxnodemap = {nk: i for i, nk in enumerate(nxnodekeys)}
 
     ig = igraph.Graph()
     ig.add_vertices(len(nxnodekeys))
@@ -43,9 +42,10 @@ def betweenness(graph, nodeid=None):
     bc = graph.betweenness(nodeid)
     if remap2nx:
         # Assumes nxnodemap dict has keys in order
-        bc = {nk:c for nk, c in zip(nxnodemap.keys(), bc)}
+        bc = {nk: c for nk, c in zip(nxnodemap.keys(), bc)}
 
     return bc
+
 
 def closeness(graph, nodeid=None):
     remap2nx = False
@@ -61,7 +61,7 @@ def closeness(graph, nodeid=None):
     cc = graph.closeness(nodeid, normalized=False)
     if remap2nx:
         # Assumes nxnodemap dict has keys in order
-        cc = {nk:c for nk, c in zip(nxnodemap.keys(), cc)}
+        cc = {nk: c for nk, c in zip(nxnodemap.keys(), cc)}
 
     return cc
 
@@ -69,9 +69,9 @@ def closeness(graph, nodeid=None):
 if __name__ == '__main__':
     # just a quick test
     nxg = nx.Graph()
-    nxg.add_nodes_from(['A', 'B', 'C', 'D','E'])
-    nxg.add_edges_from([('A','B'),('A','C'),('A','E'),
-                        ('C','D'), ('D','E')])
+    nxg.add_nodes_from(['A', 'B', 'C', 'D', 'E'])
+    nxg.add_edges_from([('A', 'B'), ('A', 'C'), ('A', 'E'),
+                        ('C', 'D'), ('D', 'E')])
 
     ig, nxnodemap = nx2ig(nxg)
 
@@ -82,17 +82,15 @@ if __name__ == '__main__':
 
     t = time.time()
     igbc = ig.betweenness()
-    print('IG BCentrality in (ms)', (time.time()-t)*1000)
+    print('IG BCentrality in (ms)', (time.time() - t) * 1000)
     print(igbc)
 
     t = time.time()
     igcc = ig.closeness()
-    print('IG CCentrality in (ms)', (time.time()-t)*1000)
+    print('IG CCentrality in (ms)', (time.time() - t) * 1000)
     print(igcc)
 
     t = time.time()
     nxbc = nx.algorithms.centrality.betweenness_centrality(nxg, normalized=False)
-    print('NX BCentrality in (ms)', (time.time()-t)*1000)
+    print('NX BCentrality in (ms)', (time.time() - t) * 1000)
     print(nxbc)
-
-
