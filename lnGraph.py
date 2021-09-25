@@ -1,4 +1,3 @@
-
 import json
 import os
 import time
@@ -6,6 +5,7 @@ import time
 import networkx as nx
 
 from nodeinterface import NodeInterface
+
 
 # Multigraph is the most honest representation,
 # but in practice we only care about the largest channels
@@ -28,9 +28,9 @@ class lnGraph(nx.Graph):
                        alias=node['alias'],
                        color=node['color'],
                        addresses=node['addresses'],
-                       capacity=0, # Increment while iterating channels
-                       num_channels=0, # Increment while iterating channels
-                       capacities=[], # For creating histograms
+                       capacity=0,  # Increment while iterating channels
+                       num_channels=0,  # Increment while iterating channels
+                       capacities=[],  # For creating histograms
                        )
 
         for edge in graphdata['edges']:
@@ -46,15 +46,15 @@ class lnGraph(nx.Graph):
                 g.nodes[n]['num_channels'] += 1
 
             edgeparams = dict(
-                           channel_id=edge['channel_id'],
-                           chan_point=edge['chan_point'],
-                           last_update=edge['last_update'],
-                           capacity=cap,
-                           node1_pub=n1,
-                           node2_pub=n2,
-                           node1_policy=edge['node1_policy'],
-                           node2_policy=edge['node2_policy'],
-                           )
+                channel_id=edge['channel_id'],
+                chan_point=edge['chan_point'],
+                last_update=edge['last_update'],
+                capacity=cap,
+                node1_pub=n1,
+                node2_pub=n2,
+                node1_policy=edge['node1_policy'],
+                node2_policy=edge['node2_policy'],
+            )
 
             redundant_edges = []
             if g.has_edge(n1, n2):
@@ -67,11 +67,11 @@ class lnGraph(nx.Graph):
                     del lesser_edge['redundant_edges']
                     redundant_edges.append(lesser_edge)
                 else:
-                    #Old edge is bigger, keep it
+                    # Old edge is bigger, keep it
                     g.edges[n1, n2]['redundant_edges'].append(edgeparams)
                     continue
 
-            edgeparams['redundant_edges']=redundant_edges
+            edgeparams['redundant_edges'] = redundant_edges
 
             g.add_edge(n1, n2, **edgeparams)
 
@@ -81,9 +81,9 @@ class lnGraph(nx.Graph):
         return g
 
     @classmethod
-    def fromlnd(cls, lndnode:NodeInterface=None, include_unannounced=False):
+    def fromlnd(cls, lndnode: NodeInterface = None, include_unannounced=False):
         if lndnode is None:
-            lndnode = NodeInterface() # use defaults
+            lndnode = NodeInterface()  # use defaults
 
         graphdata = lndnode.DescribeGraph(include_unannounced=include_unannounced)
 
@@ -93,7 +93,7 @@ class lnGraph(nx.Graph):
             # explicit convert to Python types
             addrlist = []
             for addr in addrs:
-                addrdict = {'network':addr.network, 'addr':addr.addr}
+                addrdict = {'network': addr.network, 'addr': addr.addr}
                 addrlist.append(addrdict)
             return addrlist
 
@@ -105,9 +105,9 @@ class lnGraph(nx.Graph):
                        alias=node.alias,
                        color=node.color,
                        addresses=convertAddrs2py(node.addresses),
-                       capacity=0, # Increment while iterating channels
-                       num_channels=0, # Increment while iterating channels
-                       capacities=[], # For easily creating histograms of channels
+                       capacity=0,  # Increment while iterating channels
+                       num_channels=0,  # Increment while iterating channels
+                       capacities=[],  # For easily creating histograms of channels
                        )
 
         for edge in graphdata.edges:
@@ -124,25 +124,25 @@ class lnGraph(nx.Graph):
 
             def nodepolicy2dict(np):
                 return dict(
-                            time_lock_delta=np.time_lock_delta,
-                            min_htlc=np.min_htlc,
-                            fee_base_msat=np.fee_base_msat,
-                            fee_rate_milli_msat=np.fee_rate_milli_msat,
-                            disabled=np.disabled,
-                            max_htlc_msat=np.max_htlc_msat,
-                            last_update=np.last_update,
-                        )
+                    time_lock_delta=np.time_lock_delta,
+                    min_htlc=np.min_htlc,
+                    fee_base_msat=np.fee_base_msat,
+                    fee_rate_milli_msat=np.fee_rate_milli_msat,
+                    disabled=np.disabled,
+                    max_htlc_msat=np.max_htlc_msat,
+                    last_update=np.last_update,
+                )
 
             edgeparams = dict(
-                           channel_id=edge.channel_id,
-                           chan_point=edge.chan_point,
-                           last_update=edge.last_update,
-                           capacity=cap,
-                           node1_pub=n1,
-                           node2_pub=n2,
-                           node1_policy=nodepolicy2dict(edge.node1_policy),
-                           node2_policy=nodepolicy2dict(edge.node2_policy),
-                           )
+                channel_id=edge.channel_id,
+                chan_point=edge.chan_point,
+                last_update=edge.last_update,
+                capacity=cap,
+                node1_pub=n1,
+                node2_pub=n2,
+                node1_policy=nodepolicy2dict(edge.node1_policy),
+                node2_policy=nodepolicy2dict(edge.node2_policy),
+            )
 
             redundant_edges = []
             if g.has_edge(n1, n2):
@@ -155,15 +155,15 @@ class lnGraph(nx.Graph):
                     del lesser_edge['redundant_edges']
                     redundant_edges.append(lesser_edge)
                 else:
-                    #Old edge is bigger, keep it
+                    # Old edge is bigger, keep it
                     g.edges[n1, n2]['redundant_edges'].append(edgeparams)
                     continue
 
-            edgeparams['redundant_edges']=redundant_edges
+            edgeparams['redundant_edges'] = redundant_edges
 
             g.add_edge(n1, n2, **edgeparams)
 
-            if redundant_edges: # sanity check for reference leaks
+            if redundant_edges:  # sanity check for reference leaks
                 assert g.edges[n1, n2]['channel_id'] != redundant_edges[0]['channel_id']
 
         return g
@@ -194,8 +194,6 @@ class lnGraph(nx.Graph):
             print('Fetching graph data from lnd')
             return cls.fromlnd(lndnode=ni)
 
-
-
     def channels(self, nodeid):
         """Return channels for a node, including redundants"""
 
@@ -208,4 +206,3 @@ class lnGraph(nx.Graph):
             channels.extend(redundants)
 
         return channels
-
