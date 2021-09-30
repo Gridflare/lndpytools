@@ -95,7 +95,7 @@ def main():
                 forward_event_cache[fwdcachekey] = {'amt':amount, 'fee':fee}
 
             elif outcome == 'forward_fail_event':
-                note = 'Non-local fwding failure.'
+                note = 'Downstream fwding failure.'
                 if fwdcachekey in forward_event_cache:
                     # This data is only found in forward_event, need to fetch it from cache
                     amount, fee = popamountsfromcache(fwdcachekey)
