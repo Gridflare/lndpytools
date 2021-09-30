@@ -94,7 +94,7 @@ for rkey, balances in balancesbypeer.items():
             minhtlc = max(minhtlc, args.minhtlc)
         minhtlcsbypeer[rkey] = minhtlc
     elif args.minhtlc:
-        minhtlcsbypeer[rkey] = minhtlc
+        minhtlcsbypeer[rkey] = args.minhtlc
 
 
 # Print the proposed fees
