@@ -2,7 +2,7 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-from signrpc import signer_pb2 as signrpc_dot_signer__pb2
+from lnrpc_generated.signrpc import signer_pb2 as signrpc_dot_signer__pb2
 
 
 class SignerStub(object):

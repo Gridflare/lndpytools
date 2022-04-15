@@ -13,7 +13,7 @@ import codecs
 
 import grpc
 
-from lnrpc_generated import rpc_pb2 as ln, rpc_pb2_grpc as lnrpc
+from lnrpc_generated import lightning_pb2 as ln, lightning_pb2_grpc as lnrpc
 from lnrpc_generated.walletrpc import walletkit_pb2 as walletrpc, walletkit_pb2_grpc as walletkitstub
 from lnrpc_generated.routerrpc import router_pb2 as routerrpc,router_pb2_grpc as routerstub
 
