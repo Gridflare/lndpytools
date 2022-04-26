@@ -1,6 +1,7 @@
 numpy
 pandas
 requests
+requests[socks]
 networkx
 python-igraph
 matplotlib

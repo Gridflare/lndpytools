@@ -51,7 +51,11 @@ def load_config(config_file='improvecentrality.conf'):
 
 
 def make_parser():
-    parser = argparse.ArgumentParser(description='Suggests peers based on centrality impact')
+    parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
+                                     description='Suggests peers based on centrality impact',
+                                     epilog='''Tor proxy for 1ml.com lookups:
+  Use ALL_PROXY environment variable for Tor proxy support
+  Example: ALL_PROXY="socks5://localhost:9050" python improvecentrality.py''')
     parser.add_argument('--conffile', type=str, default='improvecentrality.conf',
                         help='Specify an alternate config location')
     parser.add_argument('--validate', action="store_true",
