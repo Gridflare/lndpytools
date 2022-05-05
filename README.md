@@ -64,7 +64,7 @@ You can download updates to the repo with
 
 The `improvecentrality.py` script uses 1ml.com for information on other nodes. To use use Tor to access 1ml.com information use the `ALL_PROXY` environment variable. For example:
 
-`$ ANY_PROXY="socks5://localhost:9050" improvecentrality.py`.
+`$ ALL_PROXY="socks5://localhost:9050" improvecentrality.py`.
 
 ## Advanced
 All scripts are based on `nodeinterface.py` or `lnGraph.py`.
