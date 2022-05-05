@@ -34,10 +34,10 @@ class GraphFilter:
 
         most_recent_update = 0
         for edge in self.graph.edges.values():
-            if edge['last_update'] > most_recent_update:
+            if most_recent_update < edge['last_update'] < t:
                 most_recent_update = edge['last_update']
 
-        print('Latest update in graph:', time.ctime(most_recent_update))
+        print(f'Latest update in graph: {time.ctime(most_recent_update)} ({most_recent_update})')
         if t - most_recent_update > 6 * 60 * 60:
             raise RuntimeError('Graph is more than 6 hours old, results will be innaccurate')
 
