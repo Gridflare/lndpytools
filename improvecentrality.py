@@ -42,21 +42,21 @@ from bc_utils import *
 import time
 
 
-def get_farness_score(peer2add, myfarness, graphcopy, map, mynodekey):
+def get_farness_score(peer2add, myfarness, graphcopy, idx, mynodekey):
     # Modify the graph with a simulated channel
-    graphcopy.add_edge(map[peer2add], map[mynodekey])
+    graphcopy.add_edge(idx[peer2add], idx[mynodekey])
 
-    mynewfarness = 1 / closeness(graphcopy, map[mynodekey])
+    mynewfarness = 1 / closeness(graphcopy, idx[mynodekey])
     myfarnessdelta = mynewfarness - myfarness
 
     # Since this function is batched, and making a fresh copy is slow,
     # Make sure all changes are undone
-    graphcopy.delete_edges([(map[peer2add], map[mynodekey])])
+    graphcopy.delete_edges([(idx[peer2add], idx[mynodekey])])
 
     # Want this data from the unmodified graph
     # Otherwise their score will be lowered if the channel
     # is too beneficial to them
-    theirfarness = 1 / closeness(graphcopy, map[peer2add])
+    theirfarness = 1 / closeness(graphcopy, idx[peer2add])
 
     # This is where the magic happens
     # Nodes that reduce our farness,
@@ -67,20 +67,20 @@ def get_farness_score(peer2add, myfarness, graphcopy, map, mynodekey):
     return farnessscore
 
 
-def calculate_farness_scores(candidatekeys, graph, map, mynodekey):
+def calculate_farness_scores(candidatekeys, graph, idx, mynodekey):
 
     print('Running modified farness score calculations')
 
     t = time.time()
     farnesscores = {}
-    myfarness = 1 / closeness(graph, map[mynodekey])
+    myfarness = 1 / closeness(graph, idx[mynodekey])
 
     with ProcessPoolExecutor() as executor:
         scoreresults = executor.map(get_farness_score,
                                     candidatekeys,
                                     repeat(myfarness),
                                     repeat(graph.copy()),
-                                    repeat(map),
+                                    repeat(idx),
                                     repeat(mynodekey),
                                     chunksize=128)
 
@@ -92,33 +92,33 @@ def calculate_farness_scores(candidatekeys, graph, map, mynodekey):
     return farnesscores
 
 
-def get_new_centrality(peer2add, graphcopy, map, mynodekey):
+def get_new_centrality(peer2add, graphcopy, idx, mynodekey):
 
-    graphcopy.add_edge(map[peer2add], map[mynodekey])
+    graphcopy.add_edge(idx[peer2add], idx[mynodekey])
 
-    newbc = betweenness(graphcopy, map[mynodekey])
+    newbc = betweenness(graphcopy, idx[mynodekey])
 
     # Remove in case the same instance is reused due to batching
-    graphcopy.delete_edges([(map[peer2add], map[mynodekey])])
+    graphcopy.delete_edges([(idx[peer2add], idx[mynodekey])])
 
     return newbc
 
 
-def calculate_centrality_deltas(candidatekeys, graph, map, mynodekey):
+def calculate_centrality_deltas(candidatekeys, graph, idx, mynodekey):
 
     t = time.time()
     centralitydeltas = {}
 
     with ProcessPoolExecutor() as executor:
         print('Starting baseline centrality computation')
-        mycentralityfuture = executor.submit(betweenness, graph, map[mynodekey])
+        mycentralityfuture = executor.submit(betweenness, graph, idx[mynodekey])
 
         print('Queuing computations for new centralities')
 
-        newcentralities = executor.map(get_new_centrality,
+        newcentralities = executor.idx(get_new_centrality,
                                        candidatekeys,
                                        repeat(graph.copy()),
-                                       repeat(map),
+                                       repeat(idx),
                                        repeat(mynodekey),
                                        chunksize=4)
 
@@ -215,7 +215,7 @@ def main():
     graph = lnGraph.autoload(expirehours=False)
 
     filtered_graph = GraphFilter(graph, pub_key, graph_filters).filtered_g
-    fast_graph, map = nx2ig(filtered_graph)
+    fast_graph, idx = nx2ig(filtered_graph)
 
     if pub_key not in filtered_graph.nodes:
         print(f'Failed to find a match for pub_key={pub_key} in the graph')
@@ -234,7 +234,7 @@ def main():
     channel_candidates = CandidateFilter(filtered_graph, candidate_filters).filtered_candidates
     print('First filtering pass found', len(channel_candidates), 'candidates for new channels')
 
-    farness_scores = calculate_farness_scores(channel_candidates, fast_graph, map, pub_key)
+    farness_scores = calculate_farness_scores(channel_candidates, fast_graph, idx, pub_key)
     candidates_by_farness = sorted(channel_candidates, key=lambda k: -farness_scores[k])
 
     max_availability = candidate_filters.getint('max1mlavailability')
@@ -248,7 +248,7 @@ def main():
         raise ValueError('No valid candidates')
 
     centrality_deltas, current_centrality = calculate_centrality_deltas(
-        final_candidates, fast_graph, map, pub_key)
+        final_candidates, fast_graph, idx, pub_key)
     export_dict = print_results(centrality_deltas, current_centrality, filtered_graph, farness_scores, args.validate)
     save_recommendations(export_dict, config)
 
