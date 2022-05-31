@@ -115,7 +115,7 @@ def calculate_centrality_deltas(candidatekeys, graph, idx, mynodekey):
 
         print('Queuing computations for new centralities')
 
-        newcentralities = executor.idx(get_new_centrality,
+        newcentralities = executor.map(get_new_centrality,
                                        candidatekeys,
                                        repeat(graph.copy()),
                                        repeat(idx),
