@@ -91,11 +91,11 @@ def main():
             note = ''
             fwdcachekey = (in_htlc_id, out_htlc_id, inchanid, outchanid)
             if outcome == 'forward_event':
-                note = 'HTLC in flight.'
+                note = '💸 HTLC in flight.'
                 forward_event_cache[fwdcachekey] = {'amt':amount, 'fee':fee}
 
             elif outcome == 'forward_fail_event':
-                note = 'Downstream fwding failure.'
+                note = '❌ Downstream fwding failure.'
                 if fwdcachekey in forward_event_cache:
                     # This data is only found in forward_event, need to fetch it from cache
                     amount, fee = popamountsfromcache(fwdcachekey)
@@ -108,13 +108,17 @@ def main():
                 if eventtype == 'RECEIVE' and failure_detail == 'UNKNOWN_INVOICE':
                     note += 'Probe detected. '
 
-                note += f'Failure(wire: {wire_failure}, detail: {failure_detail}, string: {failure_string})'
+                note += f'❌ Failure(wire: {wire_failure}, detail: {failure_detail}, string: {failure_string})'
+
 
             elif outcome == 'settle_event' and  eventtype == 'FORWARD':
-                note = 'Forward successful.'
+                note = '✅ Forward successful.'
                 if fwdcachekey in forward_event_cache:
                     # This data is only found in forward_event, need to fetch it from cache
                     amount, fee = popamountsfromcache(fwdcachekey)
+
+            elif outcome == 'settle_event':
+                note = '✅'
 
             print(eventtype,
                   in_htlc_id, out_htlc_id,
