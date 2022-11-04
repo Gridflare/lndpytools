@@ -8,6 +8,7 @@ There is no configurability unlike smallworlnd's stream-lnd-htlcs
 import time
 import csv
 import traceback
+import argparse
 
 from nodeinterface import NodeInterface
 
@@ -45,9 +46,54 @@ def popamountsfromcache(key):
     del forward_event_cache[key]
     return amount, fee
 
+def subscribeEventsPersistent():
+    failures = 0
+
+    while True:
+        events = mynode.router.SubscribeHtlcEvents()
+        try:
+            _ = mynode.GetInfo() # test connection
+            failures = 0
+            print('Connected to LND. Waiting for first event...')
+            for e in events:
+                yield e
+        except StopIteration:
+            raise
+        except Exception as e:
+            details = 'no details'
+            try:
+                details = e.details()
+            except:
+                pass
+
+            print('Error:', details)
+            unavailable = ('Connection refused' in details)
+            unready = ('not yet ready' in details or 'wallet locked' in details)
+            terminated = (details == "htlc event subscription terminated")
+
+            if any((unavailable, unready, terminated)):
+                failures += 1
+                timeout = min(4**failures, 60*60*2)
+                print(f'Could not connect to lnd, retrying in {timeout}s')
+                time.sleep(timeout)
+                continue
+
+            print('Unhandled exception:', repr(e))
+            raise e
+
+
 def main():
-    events = mynode.router.SubscribeHtlcEvents()
-    print('Successfully subscribed, now listening for events')
+    parser = argparse.ArgumentParser(description='Script for monitoring/dumping htlc events')
+    parser.add_argument('--persist', action="store_true",
+                    help='Automatically reconnect to LND')
+    args = parser.parse_args()
+
+    if args.persist:
+        events = subscribeEventsPersistent()
+    else:
+        events = mynode.router.SubscribeHtlcEvents()
+        print('Now listening for events')
+
     for i, event in enumerate(events):
         try:
             inchanid = event.incoming_channel_id
