@@ -25,13 +25,13 @@ def load_config(config_file='improvecentrality.conf'):
     config['CandidateFilters'] = {
         'minchancount': 8,
         'maxchancount': 10000,
-        'mincapacitybtc': 0.3,
+        'mincapacitybtc': 0.5,
         'maxcapacitybtc': 1000,
         'minavgchan': 1_000_000,
         'minmedchan': 1_000_000,
         'minavgchanageblks': 4_000,
-        # Default 4+ >1.5M channels, 2+ >3M channels
-        'minchannels': '1500k4 3M2',
+        # Default 4+ >1.5M channels, 3+ >5M, 1+ >8M channels
+        'minchannels': '1500k4 5M3 8M1',
         'minreliability': 0.97,
         # Node must be ranked better than this for availability on 1ml
         'max1mlavailability': 2000,
