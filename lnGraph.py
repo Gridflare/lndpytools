@@ -7,12 +7,62 @@ import networkx as nx
 from nodeinterface import NodeInterface
 
 
-# Multigraph is the most honest representation,
-# but in practice we only care about the largest channels
-# Some algorithms also prefer the simpler graph
+class lnGraphBase:
+    """Holds common methods for graph manipulation"""
 
-class lnGraph(nx.Graph):
-    """Extension of networkx Graph to handle parallel channels"""
+    @classmethod
+    def autoload(cls, expirehours=8):
+        """Intelligently load from a json file or node"""
+
+        # Check for json, check age
+        graphfilename = 'describegraph.json'
+        if os.path.isfile(graphfilename):
+            mtime = os.path.getmtime(graphfilename)
+
+            # if expired, warn and exit
+            if expirehours:
+                if time.time() - mtime > expirehours * 60 * 60:
+                    print(graphfilename, 'was found but is more than 8 hours old')
+                    print('Please update it or delete to attempt fetching from lnd')
+                    exit()
+
+            return cls.fromjson(graphfile=graphfilename)
+
+        else:
+            # fromconfig will create and exit if the config is missing
+            ni = NodeInterface.fromconfig()
+
+            # else load from lnd
+            print('Fetching graph data from lnd')
+            return cls.fromlnd(lndnode=ni)
+
+class gRPCadapters:
+    """Collection of useful gRPC to JSON conversions"""
+
+    @staticmethod
+    def addrs2dict(addrs):
+        # explicit convert to Python types
+        addrlist = []
+        for addr in addrs:
+            addrdict = {'network': addr.network, 'addr': addr.addr}
+            addrlist.append(addrdict)
+        return addrlist
+
+    @staticmethod
+    def nodepolicy2dict(np):
+        return dict(
+            time_lock_delta=np.time_lock_delta,
+            min_htlc=np.min_htlc,
+            fee_base_msat=np.fee_base_msat,
+            fee_rate_milli_msat=np.fee_rate_milli_msat,
+            disabled=np.disabled,
+            max_htlc_msat=np.max_htlc_msat,
+            last_update=np.last_update,
+        )
+
+
+class lnGraph(lnGraphBase, nx.Graph):
+    """Methods for loading network graph data into networkx"""
 
     @classmethod
     def fromjson(cls, graphfile='describegraph.json'):
@@ -59,19 +109,27 @@ class lnGraph(nx.Graph):
             redundant_edges = []
             if g.has_edge(n1, n2):
 
+                # Track the total value between nodes
+                link_capacity = cap + g.edges[n1, n2]['link_capacity']
+
                 # Need to decide to overwrite or hide
                 if g.edges[n1, n2]['capacity'] < cap:
                     # Old edge is smaller, replace
                     lesser_edge = g.edges[n1, n2].copy()
                     redundant_edges = lesser_edge['redundant_edges']
                     del lesser_edge['redundant_edges']
+                    del lesser_edge['link_capacity']
                     redundant_edges.append(lesser_edge)
                 else:
                     # Old edge is bigger, keep it
                     g.edges[n1, n2]['redundant_edges'].append(edgeparams)
                     continue
+            else:
+                link_capacity = cap
+
 
             edgeparams['redundant_edges'] = redundant_edges
+            edgeparams['link_capacity'] = link_capacity
 
             g.add_edge(n1, n2, **edgeparams)
 
@@ -89,14 +147,6 @@ class lnGraph(nx.Graph):
 
         g = cls()
 
-        def convertAddrs2py(addrs):
-            # explicit convert to Python types
-            addrlist = []
-            for addr in addrs:
-                addrdict = {'network': addr.network, 'addr': addr.addr}
-                addrlist.append(addrdict)
-            return addrlist
-
         # Leave weight undefined for now, could be capacity or fee depending on algorithm
         for node in graphdata.nodes:
             g.add_node(node.pub_key,
@@ -104,7 +154,7 @@ class lnGraph(nx.Graph):
                        last_update=node.last_update,
                        alias=node.alias,
                        color=node.color,
-                       addresses=convertAddrs2py(node.addresses),
+                       addresses=gRPCadapters.addrs2dict(node.addresses),
                        capacity=0,  # Increment while iterating channels
                        num_channels=0,  # Increment while iterating channels
                        capacities=[],  # For easily creating histograms of channels
@@ -122,16 +172,6 @@ class lnGraph(nx.Graph):
                 g.nodes[n]['capacities'].append(cap)
                 g.nodes[n]['num_channels'] += 1
 
-            def nodepolicy2dict(np):
-                return dict(
-                    time_lock_delta=np.time_lock_delta,
-                    min_htlc=np.min_htlc,
-                    fee_base_msat=np.fee_base_msat,
-                    fee_rate_milli_msat=np.fee_rate_milli_msat,
-                    disabled=np.disabled,
-                    max_htlc_msat=np.max_htlc_msat,
-                    last_update=np.last_update,
-                )
 
             edgeparams = dict(
                 channel_id=edge.channel_id,
@@ -140,12 +180,15 @@ class lnGraph(nx.Graph):
                 capacity=cap,
                 node1_pub=n1,
                 node2_pub=n2,
-                node1_policy=nodepolicy2dict(edge.node1_policy),
-                node2_policy=nodepolicy2dict(edge.node2_policy),
+                node1_policy=gRPCadapters.nodepolicy2dict(edge.node1_policy),
+                node2_policy=gRPCadapters.nodepolicy2dict(edge.node2_policy),
             )
 
             redundant_edges = []
             if g.has_edge(n1, n2):
+
+                # Track the total value between nodes
+                link_capacity = cap + g.edges[n1, n2]['link_capacity']
 
                 # Need to decide to overwrite or hide
                 if g.edges[n1, n2]['capacity'] < cap:
@@ -153,13 +196,17 @@ class lnGraph(nx.Graph):
                     lesser_edge = g.edges[n1, n2].copy()
                     redundant_edges = lesser_edge['redundant_edges']
                     del lesser_edge['redundant_edges']
+                    del lesser_edge['link_capacity']
                     redundant_edges.append(lesser_edge)
                 else:
                     # Old edge is bigger, keep it
                     g.edges[n1, n2]['redundant_edges'].append(edgeparams)
                     continue
+            else:
+                link_capacity = cap
 
             edgeparams['redundant_edges'] = redundant_edges
+            edgeparams['link_capacity'] = cap
 
             g.add_edge(n1, n2, **edgeparams)
 
@@ -167,32 +214,6 @@ class lnGraph(nx.Graph):
                 assert g.edges[n1, n2]['channel_id'] != redundant_edges[0]['channel_id']
 
         return g
-
-    @classmethod
-    def autoload(cls, expirehours=8):
-        """Intelligently load from a json file or node"""
-
-        # Check for json, check age
-        graphfilename = 'describegraph.json'
-        if os.path.isfile(graphfilename):
-            mtime = os.path.getmtime(graphfilename)
-
-            # if expired, warn and exit
-            if expirehours:
-                if time.time() - mtime > expirehours * 60 * 60:
-                    print(graphfilename, 'was found but is more than 8 hours old')
-                    print('Please update it or delete to attempt fetching from lnd')
-                    exit()
-
-            return cls.fromjson()
-
-        else:
-            # fromconfig will create and exit if the config is missing
-            ni = NodeInterface.fromconfig()
-
-            # else load from lnd
-            print('Fetching graph data from lnd')
-            return cls.fromlnd(lndnode=ni)
 
     def channels(self, nodeid):
         """Return channels for a node, including redundants"""
