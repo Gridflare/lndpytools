@@ -15,21 +15,42 @@ from nodeinterface import NodeInterface
 mynode = NodeInterface.fromconfig()
 
 mychannels = {}
-def getChanInfo(chanid):
-    if chanid not in mychannels:
-        for chan in mynode.ListChannels().channels:
-            mychannels[chan.chan_id] = chan
+lastchannelfetchtime = 0
+chandatatimeout = 15
 
-        if chanid in mychannels:
-            return mychannels[chanid]
-        else:
-            print('ERROR: Unknown chanid', chanid)
-            return 'ERROR: Unknown'
-    else:
+def getChanInfo(chanid):
+    """
+    Fetches channel data from LND
+    Uses a cache that times out after `chandatatimeout` seconds
+    Also queries closed channels if `chanid` is not in open channels
+    """
+    global lastchannelfetchtime
+    uptodate = (time.time() - lastchannelfetchtime < chandatatimeout)
+
+    if uptodate and chanid in mychannels:
         return mychannels[chanid]
+
+    for chan in mynode.ListChannels().channels:
+        mychannels[chan.chan_id] = chan
+
+    lastchannelfetchtime = time.time()
+
+    if chanid in mychannels:
+        return mychannels[chanid]
+
+    for chan in mynode.ClosedChannels().channels:
+        mychannels[chan.chan_id] = chan
+
+    if chanid in mychannels:
+        return mychannels[chanid]
+
+    print('ERROR: Unknown chanid', chanid)
+    return None
 
 def getAlias4ChanID(chanid):
     chan = getChanInfo(chanid)
+    if chan is None:
+        return chanid
     alias = mynode.getAlias(chan.remote_pubkey)
     return alias
 
@@ -112,14 +133,15 @@ def main():
             if inchanid:
                 inalias = getAlias4ChanID(inchanid)
                 inchan = getChanInfo(inchanid)
-                inrbal = inchan.remote_balance
                 incap = inchan.capacity
+                inrbal = inchan.remote_balance
 
             if outchanid:
                 outalias = getAlias4ChanID(outchanid)
                 outchan = getChanInfo(outchanid)
-                outlbal = outchan.local_balance
-                outcap = outchan.capacity
+                # If channel is unknown (closed?) cannot guarantee these values exist
+                outcap = getattr(outchan, 'capacity', 'UNKNOWN')
+                outlbal = getattr(outchan, 'local_balance', 'UNKNOWN')
 
             # Extract forward amount data, if available
             amount = fee = '-'
@@ -201,7 +223,7 @@ def main():
                                  outcome, eventinfo, note])
 
         except Exception as e:
-            print('Exception while handling event.', e)
+            print('Exception while handling event.', repr(e))
             print(event)
             traceback.print_exc()
 
