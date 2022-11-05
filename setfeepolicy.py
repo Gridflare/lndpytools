@@ -5,7 +5,7 @@ fees based on chain costs and imbalance.
 This far more basic than similar tools and likely not flexible enough
 for advanced operators, but it should give a good idea of what a fair
 fee is to beginners.
-Run `python3 feesetter.py -h` for parameters.
+Run `python3 setfeepolicy.py -h` for parameters.
 """
 
 import argparse
@@ -18,8 +18,8 @@ from nodeinterface import NodeInterface
 parser = argparse.ArgumentParser(description='Set channel rate fees based on simple heuristics')
 parser.add_argument('--chainfee', type=int, default=6000,
                     help='The estimated cost in sats of opening and closing a channel, accounting for force close risk and hiring fees, default 6000')
-parser.add_argument('--passes', type=int, default=2,
-                    help='The number of times channels must be fully used to break even, default 2')
+parser.add_argument('--passes', type=float, default=2,
+                    help='The number of times channels must be fully used to break even, default 2, fixed to 1 for sink channels')
 parser.add_argument('--rebalfactor', type=int, default=10,
                     help='This factor controls how agressively fees will adjust with channel imbalance, default 10')
 parser.add_argument('--basefee', type=int, default=50,
@@ -28,10 +28,14 @@ parser.add_argument('--minhtlc', type=int,
                     help='If basefee is 0 this will be automatically set to prevent free forwards')
 parser.add_argument('--sink', action='append', default=[],
                     help='Specify the pubkeys of nodes that receive vastly more than they send')
+parser.add_argument('--sinkpenalty', type=float, default=1.5,
+                    help='Fee multiplier for sink channels, default 1.5')
 parser.add_argument('--timelockdelta', type=int, default=40,
                     help='The time lock delta to apply to all channels, default 40')
 parser.add_argument('--apply', action="store_true",
                     help='By default fees are suggested but not applied, set this flag to apply them')
+parser.add_argument('--setmaxhtlc', action="store_true",
+                    help='Adjust max htlc to try to avoid failed forwards')
 args = parser.parse_args()
 
 mynode = NodeInterface.fromconfig()
@@ -58,9 +62,11 @@ for chan in mychannels:
         balancesbypeer[chan.remote_pubkey] = {
             'local':0,'remote':0, 'total':0}
 
-    balancesbypeer[chan.remote_pubkey]['local'] += chan.local_balance
-    balancesbypeer[chan.remote_pubkey]['remote'] += chan.remote_balance
-    balancesbypeer[chan.remote_pubkey]['total'] += chan.capacity
+    balancesbypeer[chan.remote_pubkey]['local'
+        ] += chan.local_balance - chan.local_constraints.chan_reserve_sat
+    balancesbypeer[chan.remote_pubkey]['remote'
+        ] += chan.remote_balance - chan.remote_constraints.chan_reserve_sat
+    balancesbypeer[chan.remote_pubkey]['total'] += effective_capacity
 
 # Find the basic rate fee
 basicratefee = args.chainfee / np.mean(chansizes) / args.passes
@@ -77,15 +83,16 @@ if imbalancemodifier(0) <= 0:
 
 newratefeesbypeer = {}
 minhtlcsbypeer = {}
+maxhtlcsbypeer = {}
 for rkey, balances in balancesbypeer.items():
     ratio = balances['remote'] / balances['total']
     ratefee = basicratefee * imbalancemodifier(ratio)
 
-    newratefeesbypeer[rkey] = ratefee
-
     if rkey in args.sink:
         # We only have one pass to profit from, account for this
-        ratefee *= args.passes
+        ratefee *= args.passes * args.sinkpenalty
+
+    newratefeesbypeer[rkey] = ratefee
 
     # If base fee is 0, set min htlc to prevent free forwards
     if args.basefee <= 0:
@@ -96,27 +103,34 @@ for rkey, balances in balancesbypeer.items():
     elif args.minhtlc:
         minhtlcsbypeer[rkey] = args.minhtlc
 
+    if args.setmaxhtlc:
+        b = max(10e6, balances['local']*1000*0.6)
+        mh = round(b, -int(np.log10(b+1))+1)
+        maxhtlcsbypeer[rkey] = int(mh)
 
 # Print the proposed fees
-print('basefee rate minhtlc remote  cap   Alias')
-print(' (msat)  fee  (msat)  ratio (ksat)        ')
+print('basefee rate minhtlc maxhtlc remote cap    Alias')
+print(' (msat)  fee   (sat)  (ksat)  ratio (ksat)      ')
 for chan in mychannels:
     rate_fee = newratefeesbypeer[chan.remote_pubkey]
     remote_ratio = chanratios[chan.channel_point]
     base_fee = args.basefee
-
-    if chan.remote_pubkey in args.sink:
-        # Assume only 1 end-to end movement of funds
-        # remove the effect of the passes factor previously added
-        rate_fee *= args.passes * 1.1
 
     if chan.remote_pubkey in minhtlcsbypeer:
         minhtlc = minhtlcsbypeer[chan.remote_pubkey]
     else:
         minhtlc = chan.local_constraints.min_htlc_msat
 
-    print('{:6} {:.3%} {:5} {:4.0%} {:5.0f} {}'.format(
-            base_fee, rate_fee, minhtlc, remote_ratio,
+    if chan.remote_pubkey in maxhtlcsbypeer:
+        maxhtlc = maxhtlcsbypeer[chan.remote_pubkey]
+    else:
+        maxhtlc = chan.local_constraints.max_pending_amt_msat
+    maxhtlc = int(maxhtlc/1e6)
+    if maxhtlc >= 1e7:
+        maxhtlc = '   ...'
+
+    print('{:6} {:.3%} {:6} {:7} {:6.0%} {:5.0f} {}'.format(
+            base_fee, rate_fee, minhtlc/1e3, maxhtlc, remote_ratio,
             chan.capacity/1e3, mynode.getAlias(chan.remote_pubkey)))
 
 if args.apply:
@@ -128,11 +142,13 @@ if args.apply:
             fee_rate = newratefeesbypeer[chan.remote_pubkey],
             base_fee_msat = args.basefee,
             time_lock_delta = args.timelockdelta,
-            # ~ max_htlc_msat = int(chan.capacity*1000*0.4)
         )
         if chan.remote_pubkey in minhtlcsbypeer:
            kwargs['min_htlc_msat_specified'] = True
            kwargs['min_htlc_msat'] = minhtlcsbypeer[chan.remote_pubkey]
+
+        if maxhtlcsbypeer:
+            kwargs['max_htlc_msat'] = maxhtlcsbypeer[chan.remote_pubkey]
 
         mynode.UpdateChannelPolicy(**kwargs)
 
