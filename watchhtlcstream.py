@@ -88,7 +88,7 @@ def subscribeEventsPersistent():
                 pass
 
             print('Error:', details)
-            unavailable = ('Connection refused' in details)
+            unavailable = ('Connection refused' in details or 'Connection reset' in details)
             unready = ('not yet ready' in details or 'wallet locked' in details)
             terminated = (details == "htlc event subscription terminated")
 
@@ -174,7 +174,7 @@ def main():
                 wire_failure = getFailureAttribute(eventinfo, 'wire_failure')
 
                 if eventtype == 'RECEIVE' and failure_detail == 'UNKNOWN_INVOICE':
-                    note += 'Probe detected. '
+                    note += '🛸 Probe detected. '
 
                 note += f'❌ Failure(wire: {wire_failure}, detail: {failure_detail}, string: {failure_string})'
 
