@@ -36,12 +36,14 @@ parser.add_argument('--apply', action="store_true",
                     help='By default fees are suggested but not applied, set this flag to apply them')
 parser.add_argument('--setmaxhtlc', action="store_true",
                     help='Adjust max htlc to try to avoid failed forwards')
+parser.add_argument('--override', action='append', default=[],
+                    help='Use this fee policy for this node. Format: pubkey,ppm')
 args = parser.parse_args()
 
 mynode = NodeInterface.fromconfig()
 
-# Find channel ratios and average channel size
-# Using an average prevents overcharging for small channels and
+# Find channel ratios and median channel size
+# Using median prevents overcharging for small channels and
 # undercharging for large ones
 chansizes = []
 chanratios = {}
@@ -69,7 +71,7 @@ for chan in mychannels:
     balancesbypeer[chan.remote_pubkey]['total'] += effective_capacity
 
 # Find the basic rate fee
-basicratefee = args.chainfee / np.mean(chansizes) / args.passes
+basicratefee = args.chainfee / np.median(chansizes) / args.passes
 
 # Modify the rate fee for each channel for channel balance
 def imbalancemodifier(remote_ratio):
@@ -80,6 +82,7 @@ def imbalancemodifier(remote_ratio):
 if imbalancemodifier(0) <= 0:
     raise ValueError('--rebalfactor is too large, fees could be zero or negative')
 
+ppm_overrides = {k:int(p) for k, p in map(lambda s: s.split(','), args.override)}
 
 newratefeesbypeer = {}
 minhtlcsbypeer = {}
@@ -91,6 +94,9 @@ for rkey, balances in balancesbypeer.items():
     if rkey in args.sink:
         # We only have one pass to profit from, account for this
         ratefee *= args.passes * args.sinkpenalty
+
+    if rkey in ppm_overrides:
+        ratefee = ppm_overrides[rkey]/1e6
 
     newratefeesbypeer[rkey] = ratefee
 
@@ -109,8 +115,8 @@ for rkey, balances in balancesbypeer.items():
         maxhtlcsbypeer[rkey] = int(mh)
 
 # Print the proposed fees
-print('basefee rate minhtlc maxhtlc remote cap    Alias')
-print(' (msat)  fee   (sat)  (ksat)  ratio (ksat)      ')
+print('basefee rate  minhtlc maxhtlc remote  cap   Alias')
+print(' (msat)  fee   (sat)   (ksat)  ratio (ksat)      ')
 for chan in mychannels:
     rate_fee = newratefeesbypeer[chan.remote_pubkey]
     remote_ratio = chanratios[chan.channel_point]
@@ -129,7 +135,7 @@ for chan in mychannels:
     if maxhtlc >= 1e7:
         maxhtlc = '   ...'
 
-    print('{:6} {:.3%} {:6} {:7} {:6.0%} {:5.0f} {}'.format(
+    print('{:6} {:.4%} {:6} {:7} {:6.0%} {:6.0f} {}'.format(
             base_fee, rate_fee, minhtlc/1e3, maxhtlc, remote_ratio,
             chan.capacity/1e3, mynode.getAlias(chan.remote_pubkey)))
 
