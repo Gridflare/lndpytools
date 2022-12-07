@@ -2,6 +2,8 @@
 """
 Plots some node statistics for comparing with neighbours
 This script requires describegraph.json
+
+The blue dot represents the node being viewed relative to peers
 """
 import sys
 
@@ -9,38 +11,50 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 
-from lnGraph import lnGraph
+from lnGraph import lnGraphV2
 
-if len(sys.argv) > 1 and len(sys.argv[1]) == 66:
+median_payment = 200e3  # sat, Payment size for calculating routing costs
+# TODO: Should ignore channels smaller than (2x? 4-5x?) the above
+feeceiling = 5000  # PPM, ignore fees higher than this
+
+if len(sys.argv) > 1 and len(sys.argv[1]) <= 66:
     node2view = sys.argv[1]
 else:
-    print('Please enter the pubkey of the node of interest')
+    print('Please enter the pubkey or alias of the node of interest')
     node2view = input('Pubkey: ')
 
-median_payment = 100e3  # sat, Payment size for calculating routing costs
-# Should ignore channels smaller than (2x? 4-5x?) the above
-feeceiling = 6000  # sats, ignore fees charge more than this, unidirectional channel?
+print('Loading graph')
+g = lnGraphV2.autoload()
 
-g = lnGraph.autoload()
-# ~ print(list(g.nodes.keys())[0])
-nx.freeze(g)
+if len(node2view) < 66:
+    try:
+        node2view = g.nodes.find(alias=node2view)['pub_key']
+    except ValueError:
+        print(f'Could not find node with alias "{node2view}"')
+        exit()
 
-node = g.nodes[node2view]
+node = g.nodes.find(node2view)
 
 print('Viewing', node['alias'])
 
 # Collect data for histogram
 chanstats = dict(chansizes=[], peersizes=[], peerchancounts=[],
                  fees=dict(inrate=[], outrate=[], inbase=[], outbase=[]))
-for peerkey in g.adj[node2view]:
-    chan = g.edges[node2view, peerkey]
-    if chan['node1_policy'] is None or chan['node2_policy'] is None:
+
+channel_data = g.channels.select(_from=node.index)
+for chan in channel_data:
+    assert node2view == chan['local_pubkey']
+    assert isinstance(chan['capacity'], int)
+
+    if chan['policy_in'] is None or chan['policy_out'] is None:
         continue  # Skip this channel
 
     chanstats['chansizes'].append(chan['capacity'])
-    chanstats['peersizes'].append(g.nodes[peerkey]['capacity'])
-    chanstats['peerchancounts'].append(g.nodes[peerkey]['num_channels'])
 
+    peerkey = chan['remote_pubkey']
+    peer = g.nodes.find(pub_key=peerkey)
+    chanstats['peersizes'].append(peer['capacity'])
+    chanstats['peerchancounts'].append(peer['num_channels'])
 
     def appendfeedata(outrate, outbase, inrate, inbase):
         # Rates are in PPM, /1e6 to get a fraction
@@ -50,25 +64,15 @@ for peerkey in g.adj[node2view]:
         chanstats['fees']['inrate'].append(int(inrate))
         chanstats['fees']['inbase'].append(int(inbase))
 
+    appendfeedata(chan['policy_out']['fee_rate_milli_msat'],
+                  chan['policy_out']['fee_base_msat'],
+                  chan['policy_in']['fee_rate_milli_msat'],
+                  chan['policy_in']['fee_base_msat'])
 
-    if node2view == chan['node1_pub']:
-        appendfeedata(chan['node1_policy']['fee_rate_milli_msat'],
-                      chan['node1_policy']['fee_base_msat'],
-                      chan['node2_policy']['fee_rate_milli_msat'],
-                      chan['node2_policy']['fee_base_msat'])
-
-    elif node2view == chan['node2_pub']:
-        appendfeedata(chan['node2_policy']['fee_rate_milli_msat'],
-                      chan['node2_policy']['fee_base_msat'],
-                      chan['node1_policy']['fee_rate_milli_msat'],
-                      chan['node1_policy']['fee_base_msat'])
-
-    else:
-        assert False
 
 # Convert to array
-chanstats['chansizes'] = np.array(chanstats['chansizes'])
-chanstats['peersizes'] = np.array(chanstats['peersizes'])
+chanstats['chansizes'] = np.asarray(chanstats['chansizes'])
+chanstats['peersizes'] = np.asarray(chanstats['peersizes'])
 for k, v in chanstats['fees'].items():
     chanstats['fees'][k] = np.array(v)
 
@@ -135,13 +139,16 @@ def pltboxes():
     median_in_fees = (chanstats['fees']['inbase'] / 1e3 + chanstats['fees']['inrate'] / 1e6 * median_payment)
     median_out_fees = (chanstats['fees']['outbase'] / 1e3 + chanstats['fees']['outrate'] / 1e6 * median_payment)
 
-    # Remove outliers
-    median_in_fees = median_in_fees[np.where(median_in_fees <= feeceiling)[0]]
-    median_out_fees = median_out_fees[np.where(median_out_fees <= feeceiling)[0]]
+    median_in_fees_ppm = median_in_fees * 1e6/median_payment
+    median_out_fees_ppm = median_out_fees * 1e6/median_payment
 
-    feeax.boxplot([median_in_fees, median_out_fees],
+    # Remove outliers
+    median_in_fees_ppm = median_in_fees_ppm[np.where(median_in_fees_ppm <= feeceiling)[0]]
+    median_out_fees_ppm = median_out_fees_ppm[np.where(median_out_fees_ppm <= feeceiling)[0]]
+
+    feeax.boxplot([median_in_fees_ppm, median_out_fees_ppm],
                   labels=['Receiving', 'Sending'], showmeans=True)
-    feeax.set_ylabel('Fee (sat)')
+    feeax.set_ylabel('Fee (PPM)')
 
     fig.tight_layout()
     plt.show()
