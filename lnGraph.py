@@ -3,12 +3,13 @@ import os
 import time
 
 import networkx as nx
+import igraph
 
 from nodeinterface import NodeInterface
 
 
 class lnGraphBase:
-    """Holds common methods for graph manipulation"""
+    """Holds common methods for the below classes"""
 
     @classmethod
     def autoload(cls, expirehours=8):
@@ -62,7 +63,7 @@ class gRPCadapters:
 
 
 class lnGraph(lnGraphBase, nx.Graph):
-    """Methods for loading network graph data into networkx"""
+    """Methods for loading network data into networkx"""
 
     @classmethod
     def fromjson(cls, graphfile='describegraph.json'):
@@ -227,3 +228,170 @@ class lnGraph(lnGraphBase, nx.Graph):
             channels.extend(redundants)
 
         return channels
+
+
+class lnGraphV2(lnGraphBase, igraph.Graph):
+
+    @classmethod
+    def fromjson(cls, graphfile='describegraph.json'):
+        with open(graphfile, encoding='utf8') as f:
+            graphdata = json.load(f)
+
+        # Directed graph will be superior when fee metrics are computed
+        g = cls(directed=True)
+
+        intattrs = ['capacity', 'last_update',
+                    'fee_base_msat', 'fee_rate_milli_msat',
+                    'min_htlc', 'max_htlc_msat']
+
+        def fixstr2int(data: dict):
+            if data is None: return None
+            for k, v in data.items():
+                if k in intattrs:
+                    data[k] = int(v)
+            return data
+
+        nodeattrs = {a:[] for a in ['pub_key', 'last_update', 'alias', 'color', 'addresses']}
+        for node in graphdata['nodes']:
+            node = fixstr2int(node)
+            for k in nodeattrs.keys():
+                nodeattrs[k].append(node[k])
+
+
+
+        n = len(nodeattrs['pub_key'])
+        nodeattrs['capacity'] = [0]*n  # Increment while iterating channels
+        nodeattrs['num_channels'] = [0]*n  # Increment while iterating channels
+
+        edgeattrs = {a:[] for a in ['channel_id', 'chan_point', 'capacity', 'last_update']}
+        policies1 = []
+        policies2 = []
+        edgeids1 = []
+        edgeids2 = []
+        nodepubs1 = []
+        nodepubs2 = []
+        nodeindexmap = {k:i for i, k in enumerate(nodeattrs['pub_key'])}
+
+        for edge in graphdata['edges']:
+            edge = fixstr2int(edge)
+            n1pub = edge['node1_pub']
+            n2pub = edge['node2_pub']
+            cap = edge['capacity']
+
+            for k in edgeattrs.keys():
+                edgeattrs[k].append(edge[k])
+
+            edgeids1.append((n1pub,n2pub))
+            edgeids2.append((n2pub,n1pub))
+            nodepubs1.append(n1pub)
+            nodepubs2.append(n2pub)
+
+            n1i = nodeindexmap[n1pub]
+            n2i = nodeindexmap[n2pub]
+
+            nodeattrs['capacity'][n1i] += cap
+            nodeattrs['capacity'][n2i] += cap
+            nodeattrs['num_channels'][n1i] += 1
+            nodeattrs['num_channels'][n2i] += 1
+
+            policies1.append(fixstr2int(edge['node1_policy']))
+            policies2.append(fixstr2int(edge['node2_policy']))
+
+        g.add_vertices(nodeattrs['pub_key'], nodeattrs)
+
+        # Using a directed graph, have to add edges twice because channels are bidirectionsl
+        edgeattrs['policy_out'] = policies1
+        edgeattrs['policy_in'] = policies2
+        edgeattrs['local_pubkey'] = nodepubs1
+        edgeattrs['remote_pubkey'] = nodepubs2
+
+        g.add_edges(edgeids1, edgeattrs)
+
+        edgeattrs['policy_out'] = policies2
+        edgeattrs['policy_in'] = policies1
+        edgeattrs['local_pubkey'] = nodepubs2
+        edgeattrs['remote_pubkey'] = nodepubs1
+
+        g.add_edges(edgeids2, edgeattrs)
+        return g
+
+    @classmethod
+    def fromlnd(cls, lndnode: NodeInterface = None, include_unannounced=False):
+        if lndnode is None:
+            lndnode = NodeInterface()  # use defaults
+
+        graphdata = lndnode.DescribeGraph(include_unannounced=include_unannounced)
+
+        g = cls(directed=True)
+
+        nodeattrs = {a:[] for a in ['pub_key', 'last_update', 'alias', 'color', 'addresses']}
+        for node in graphdata.nodes:
+            for k in nodeattrs.keys():
+                a = getattr(node, k)
+                if k == 'addresses':
+                    a = gRPCadapters.addrs2dict(a)
+                nodeattrs[k].append(a)
+
+        n = len(nodeattrs['pub_key']) # Number of nodes in graph
+        nodeattrs['capacity'] = [0]*n  # Increment while iterating channels
+        nodeattrs['num_channels'] = [0]*n  # Increment while iterating channels
+
+        edgeattrs = {a:[] for a in ['channel_id', 'chan_point', 'capacity', 'last_update']}
+        policies1 = []
+        policies2 = []
+        edgeids1 = []
+        edgeids2 = []
+        nodepubs1 = []
+        nodepubs2 = []
+        nodeindexmap = {k:i for i, k in enumerate(nodeattrs['pub_key'])}
+
+        for edge in graphdata.edges:
+            n1pub = edge.node1_pub
+            n2pub = edge.node2_pub
+            cap = int(edge.capacity)
+
+            for k in edgeattrs.keys():
+                edgeattrs[k].append(getattr(edge, k))
+
+            edgeids1.append((n1pub,n2pub))
+            edgeids2.append((n2pub,n1pub))
+            nodepubs1.append(n1pub)
+            nodepubs2.append(n2pub)
+
+            n1i = nodeindexmap[n1pub]
+            n2i = nodeindexmap[n2pub]
+
+            nodeattrs['capacity'][n1i] += cap
+            nodeattrs['capacity'][n2i] += cap
+            nodeattrs['num_channels'][n1i] += 1
+            nodeattrs['num_channels'][n2i] += 1
+
+            policies1.append(gRPCadapters.nodepolicy2dict(edge.node1_policy))
+            policies2.append(gRPCadapters.nodepolicy2dict(edge.node2_policy))
+
+        g.add_vertices(nodeattrs['pub_key'], nodeattrs)
+
+        # Using a directed graph, have to add edges twice to keep track of policies
+        edgeattrs['policy_out'] = policies1
+        edgeattrs['policy_in'] = policies2
+        edgeattrs['local_pubkey'] = n1pub
+        edgeattrs['remote_pubkey'] = n2pub
+
+        g.add_edges(edgeids1, edgeattrs)
+
+        edgeattrs['policy_out'] = policies2
+        edgeattrs['policy_in'] = policies1
+        edgeattrs['local_pubkey'] = n2pub
+        edgeattrs['remote_pubkey'] = n1pub
+
+        g.add_edges(edgeids2, edgeattrs)
+        return g
+
+    @property
+    def nodes(self):
+        return self.vs
+
+    @property
+    def channels(self):
+        return self.es
+
