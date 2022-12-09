@@ -232,6 +232,7 @@ class lnGraph(lnGraphBase, nx.Graph):
 
 class lnGraphV2(lnGraphBase, igraph.Graph):
 
+    @staticmethod
     def _init_vars():
         # temporary values used during initialization
         v = dict(
@@ -246,6 +247,40 @@ class lnGraphV2(lnGraphBase, igraph.Graph):
         )
 
         return v
+
+    @staticmethod
+    def _init_record_channel(init_vars, nodeindexmap, n1pub, n2pub,
+                             chan_cap, policy1, policy2):
+        # Record the channel to records
+        init_vars['edgeids1'].append((n1pub,n2pub))
+        init_vars['edgeids2'].append((n2pub,n1pub))
+        init_vars['nodepubs1'].append(n1pub)
+        init_vars['nodepubs2'].append(n2pub)
+
+        n1i = nodeindexmap[n1pub]
+        n2i = nodeindexmap[n2pub]
+
+        init_vars['nodeattrs']['capacity'][n1i] += chan_cap
+        init_vars['nodeattrs']['capacity'][n2i] += chan_cap
+        init_vars['nodeattrs']['num_channels'][n1i] += 1
+        init_vars['nodeattrs']['num_channels'][n2i] += 1
+
+        init_vars['policies1'].append(policy1)
+        init_vars['policies2'].append(policy2)
+
+    def _init_setpolicies1(init_vars):
+        # Set policies from the perspective of node 1
+        init_vars['edgeattrs']['policy_out'] = init_vars['policies1']
+        init_vars['edgeattrs']['policy_in'] = init_vars['policies2']
+        init_vars['edgeattrs']['local_pubkey'] = init_vars['nodepubs1']
+        init_vars['edgeattrs']['remote_pubkey'] = init_vars['nodepubs2']
+
+    def _init_setpolicies2(init_vars):
+        # Set policies from the perspective of node 2
+        init_vars['edgeattrs']['policy_out'] = init_vars['policies2']
+        init_vars['edgeattrs']['policy_in'] = init_vars['policies1']
+        init_vars['edgeattrs']['local_pubkey'] = init_vars['nodepubs2']
+        init_vars['edgeattrs']['remote_pubkey'] = init_vars['nodepubs1']
 
     @classmethod
     def fromjson(cls, graphfile='describegraph.json'):
@@ -288,36 +323,19 @@ class lnGraphV2(lnGraphBase, igraph.Graph):
             for k in I['edgeattrs'].keys():
                 I['edgeattrs'][k].append(edge[k])
 
-            I['edgeids1'].append((n1pub,n2pub))
-            I['edgeids2'].append((n2pub,n1pub))
-            I['nodepubs1'].append(n1pub)
-            I['nodepubs2'].append(n2pub)
-
-            n1i = nodeindexmap[n1pub]
-            n2i = nodeindexmap[n2pub]
-
-            I['nodeattrs']['capacity'][n1i] += cap
-            I['nodeattrs']['capacity'][n2i] += cap
-            I['nodeattrs']['num_channels'][n1i] += 1
-            I['nodeattrs']['num_channels'][n2i] += 1
-
-            I['policies1'].append(fixstr2int(edge['node1_policy']))
-            I['policies2'].append(fixstr2int(edge['node2_policy']))
+            cls._init_record_channel(I, nodeindexmap, n1pub, n2pub, cap,
+                                    fixstr2int(edge['node1_policy']),
+                                    fixstr2int(edge['node2_policy']),
+                                    )
 
         g.add_vertices(I['nodeattrs']['pub_key'], I['nodeattrs'])
 
         # Using a directed graph, have to add edges twice because channels are bidirectionsl
-        I['edgeattrs']['policy_out'] = I['policies1']
-        I['edgeattrs']['policy_in'] = I['policies2']
-        I['edgeattrs']['local_pubkey'] = I['nodepubs1']
-        I['edgeattrs']['remote_pubkey'] = I['nodepubs2']
+        cls._init_setpolicies1(I)
 
         g.add_edges(I['edgeids1'], I['edgeattrs'])
 
-        I['edgeattrs']['policy_out'] = I['policies2']
-        I['edgeattrs']['policy_in'] = I['policies1']
-        I['edgeattrs']['local_pubkey'] = I['nodepubs2']
-        I['edgeattrs']['remote_pubkey'] = I['nodepubs1']
+        cls._init_setpolicies2(I)
 
         g.add_edges(I['edgeids2'], I['edgeattrs'])
         return g
@@ -354,36 +372,19 @@ class lnGraphV2(lnGraphBase, igraph.Graph):
             for k in I['edgeattrs'].keys():
                 I['edgeattrs'][k].append(getattr(edge, k))
 
-            I['edgeids1'].append((n1pub,n2pub))
-            I['edgeids2'].append((n2pub,n1pub))
-            I['nodepubs1'].append(n1pub)
-            I['nodepubs2'].append(n2pub)
-
-            n1i = nodeindexmap[n1pub]
-            n2i = nodeindexmap[n2pub]
-
-            I['nodeattrs']['capacity'][n1i] += cap
-            I['nodeattrs']['capacity'][n2i] += cap
-            I['nodeattrs']['num_channels'][n1i] += 1
-            I['nodeattrs']['num_channels'][n2i] += 1
-
-            I['policies1'].append(gRPCadapters.nodepolicy2dict(edge.node1_policy))
-            I['policies2'].append(gRPCadapters.nodepolicy2dict(edge.node2_policy))
+            cls._init_record_channel(I, nodeindexmap, n1pub,n2pub, cap,
+                        gRPCadapters.nodepolicy2dict(edge.node1_policy),
+                        gRPCadapters.nodepolicy2dict(edge.node2_policy),
+                        )
 
         g.add_vertices(I['nodeattrs']['pub_key'], I['nodeattrs'])
 
         # Using a directed graph, have to add edges twice to keep track of policies
-        I['edgeattrs']['policy_out'] = I['policies1']
-        I['edgeattrs']['policy_in'] = I['policies2']
-        I['edgeattrs']['local_pubkey'] = I['nodepubs1']
-        I['edgeattrs']['remote_pubkey'] = I['nodepubs2']
+        cls._init_setpolicies1(I)
 
         g.add_edges(I['edgeids1'], I['edgeattrs'])
 
-        I['edgeattrs']['policy_out'] = I['policies2']
-        I['edgeattrs']['policy_in'] = I['policies1']
-        I['edgeattrs']['local_pubkey'] = I['nodepubs2']
-        I['edgeattrs']['remote_pubkey'] = I['nodepubs1']
+        cls._init_setpolicies2(I)
 
         g.add_edges(I['edgeids2'], I['edgeattrs'])
         return g
@@ -396,8 +397,13 @@ class lnGraphV2(lnGraphBase, igraph.Graph):
     def channels(self):
         return self.es
 
+
 if __name__ == '__main__':
     print('Loading graph')
-    g = lnGraphV2.autoload()
-    # ~ g = lnGraphV2.fromlnd(lndnode=NodeInterface.fromconfig())
+    # ~ g = lnGraphV2.autoload()
+    g = lnGraphV2.fromlnd(lndnode=NodeInterface.fromconfig())
     print(g.summary())
+    # find() grabs the first match, for testing
+    n = g.vs.find(alias='Gridflare')
+    print(n)
+    print(g.es.find(_from=n))
