@@ -269,18 +269,18 @@ class lnGraphV2(lnGraphBase, igraph.Graph):
         init_vars['policies2'].append(policy2)
 
     @staticmethod
-    def _init_setflattenedpolicies(policies:list,prefix:str,dest:dict):
+    def _init_setflattenedpolicies(policies:list,direction:str,dest:dict):
         pkeys = ['time_lock_delta', 'min_htlc', 'max_htlc_msat',
                  'fee_base_msat', 'fee_rate_milli_msat',
                  'disabled', 'last_update']
 
         for k in pkeys:
-            dest[f'{prefix}.{k}'] = []
+            dest[f'{k}_{direction}'] = []
 
         for p in policies:
             if p is None: p = {}
             for k in pkeys:
-                dest[f'{prefix}.{k}'].append(p.get(k, None))
+                dest[f'{k}_{direction}'].append(p.get(k, None))
 
     @classmethod
     def _init_setpolicies1(cls, init_vars):
@@ -289,9 +289,9 @@ class lnGraphV2(lnGraphBase, igraph.Graph):
         init_vars['edgeattrs']['remote_pubkey'] = init_vars['nodepubs2']
 
         cls._init_setflattenedpolicies(
-            init_vars['policies1'],'policy_out',init_vars['edgeattrs'])
+            init_vars['policies1'],'out',init_vars['edgeattrs'])
         cls._init_setflattenedpolicies(
-            init_vars['policies2'],'policy_in',init_vars['edgeattrs'])
+            init_vars['policies2'],'in',init_vars['edgeattrs'])
 
 
     @classmethod
@@ -301,9 +301,9 @@ class lnGraphV2(lnGraphBase, igraph.Graph):
         init_vars['edgeattrs']['remote_pubkey'] = init_vars['nodepubs1']
 
         cls._init_setflattenedpolicies(
-            init_vars['policies2'],'policy_out',init_vars['edgeattrs'])
+            init_vars['policies2'],'out',init_vars['edgeattrs'])
         cls._init_setflattenedpolicies(
-            init_vars['policies1'],'policy_in',init_vars['edgeattrs'])
+            init_vars['policies1'],'in',init_vars['edgeattrs'])
 
     @classmethod
     def fromjson(cls, graphfile='describegraph.json'):
@@ -420,6 +420,64 @@ class lnGraphV2(lnGraphBase, igraph.Graph):
     def channels(self):
         return self.es
 
+    def simple(self):
+        """
+        Returns a copy without parallel edges,
+        intelligently consolidates policy information
+        """
+        c = self.copy()
+
+        unknown_in = c.es.select(disabled_in_eq=None)
+        unknown_out = c.es.select(disabled_out_eq=None)
+
+        pkeys = ['time_lock_delta', 'min_htlc', 'max_htlc_msat',
+             'fee_base_msat', 'fee_rate_milli_msat',
+             'disabled', 'last_update']
+
+        combine_edges_method = {
+            'capacity':'sum',
+            'last_update': 'max',
+            'local_pubkey': 'first',
+            'remote_pubkey': 'first',
+        }
+        for d in ['in','out']:
+            policies = {
+                f'time_lock_delta_{d}': 'max',
+                f'min_htlc_{d}': 'min',
+                f'max_htlc_msat_{d}': 'max',
+                f'fee_base_msat_{d}': 'max',
+                f'fee_rate_milli_msat_{d}': 'max',
+                f'disabled_{d}': all,
+                f'last_update_{d}': 'max',
+            }
+            combine_edges_method.update(policies)
+
+        # Can't use comparisons when a field is None
+        for pk in pkeys:
+            # -1 should be a safe placeholder
+            unknown_in.set_attribute_values(f'{pk}_in', -1)
+            unknown_out.set_attribute_values(f'{pk}_out', -1)
+
+        s = c.simplify(combine_edges=combine_edges_method)
+
+        # Reset unknown fields to None
+        unknown_in = s.es.select(time_lock_delta_in_eq=-1)
+        unknown_out = s.es.select(time_lock_delta_out_eq=-1)
+        for pk in pkeys:
+            unknown_in.set_attribute_values(f'{pk}_in', None)
+            unknown_out.set_attribute_values(f'{pk}_out', None)
+
+        return s
+
+    def basic(self):
+        """Faster than .simple(), discards policy info"""
+        combine_edges_method = {
+            'capacity': 'sum',
+            'last_update': 'max',
+            'local_pubkey': 'first',
+            'remote_pubkey': 'first',
+        }
+        return self.copy().simplify(combine_edges=combine_edges_method)
 
 if __name__ == '__main__':
     print('Loading graph')
