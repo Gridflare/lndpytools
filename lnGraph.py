@@ -268,19 +268,42 @@ class lnGraphV2(lnGraphBase, igraph.Graph):
         init_vars['policies1'].append(policy1)
         init_vars['policies2'].append(policy2)
 
-    def _init_setpolicies1(init_vars):
+    @staticmethod
+    def _init_setflattenedpolicies(policies:list,prefix:str,dest:dict):
+        pkeys = ['time_lock_delta', 'min_htlc', 'max_htlc_msat',
+                 'fee_base_msat', 'fee_rate_milli_msat',
+                 'disabled', 'last_update']
+
+        for k in pkeys:
+            dest[f'{prefix}.{k}'] = []
+
+        for p in policies:
+            if p is None: p = {}
+            for k in pkeys:
+                dest[f'{prefix}.{k}'].append(p.get(k, None))
+
+    @classmethod
+    def _init_setpolicies1(cls, init_vars):
         # Set policies from the perspective of node 1
-        init_vars['edgeattrs']['policy_out'] = init_vars['policies1']
-        init_vars['edgeattrs']['policy_in'] = init_vars['policies2']
         init_vars['edgeattrs']['local_pubkey'] = init_vars['nodepubs1']
         init_vars['edgeattrs']['remote_pubkey'] = init_vars['nodepubs2']
 
-    def _init_setpolicies2(init_vars):
+        cls._init_setflattenedpolicies(
+            init_vars['policies1'],'policy_out',init_vars['edgeattrs'])
+        cls._init_setflattenedpolicies(
+            init_vars['policies2'],'policy_in',init_vars['edgeattrs'])
+
+
+    @classmethod
+    def _init_setpolicies2(cls, init_vars):
         # Set policies from the perspective of node 2
-        init_vars['edgeattrs']['policy_out'] = init_vars['policies2']
-        init_vars['edgeattrs']['policy_in'] = init_vars['policies1']
         init_vars['edgeattrs']['local_pubkey'] = init_vars['nodepubs2']
         init_vars['edgeattrs']['remote_pubkey'] = init_vars['nodepubs1']
+
+        cls._init_setflattenedpolicies(
+            init_vars['policies2'],'policy_out',init_vars['edgeattrs'])
+        cls._init_setflattenedpolicies(
+            init_vars['policies1'],'policy_in',init_vars['edgeattrs'])
 
     @classmethod
     def fromjson(cls, graphfile='describegraph.json'):
@@ -400,8 +423,8 @@ class lnGraphV2(lnGraphBase, igraph.Graph):
 
 if __name__ == '__main__':
     print('Loading graph')
-    # ~ g = lnGraphV2.autoload()
-    g = lnGraphV2.fromlnd(lndnode=NodeInterface.fromconfig())
+    g = lnGraphV2.autoload()
+    # ~ g = lnGraphV2.fromlnd(lndnode=NodeInterface.fromconfig())
     print(g.summary())
     # find() grabs the first match, for testing
     n = g.vs.find(alias='Gridflare')
