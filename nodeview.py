@@ -24,7 +24,8 @@ else:
     node2view = input('Pubkey: ')
 
 print('Loading graph')
-g = lnGraphV2.autoload()
+# Using the simplified graph to avoid double counting parallel links
+g = lnGraphV2.autoload().simple()
 
 if len(node2view) < 66:
     try:
@@ -44,10 +45,7 @@ chanstats = dict(chansizes=[], peersizes=[], peerchancounts=[],
 channel_data = g.channels.select(_from=node.index)
 for chan in channel_data:
     assert node2view == chan['local_pubkey']
-    assert isinstance(chan['capacity'], int)
-
-    if chan['policy_in'] is None or chan['policy_out'] is None:
-        continue  # Skip this channel
+    # ~ assert isinstance(chan['capacity'], int)
 
     chanstats['chansizes'].append(chan['capacity'])
 
@@ -64,11 +62,10 @@ for chan in channel_data:
         chanstats['fees']['inrate'].append(int(inrate))
         chanstats['fees']['inbase'].append(int(inbase))
 
-    appendfeedata(chan['policy_out']['fee_rate_milli_msat'],
-                  chan['policy_out']['fee_base_msat'],
-                  chan['policy_in']['fee_rate_milli_msat'],
-                  chan['policy_in']['fee_base_msat'])
-
+    appendfeedata(chan['fee_rate_milli_msat_out'],
+                  chan['fee_base_msat_out'],
+                  chan['fee_rate_milli_msat_in'],
+                  chan['fee_base_msat_in'])
 
 # Convert to array
 chanstats['chansizes'] = np.asarray(chanstats['chansizes'])
@@ -76,6 +73,7 @@ chanstats['peersizes'] = np.asarray(chanstats['peersizes'])
 for k, v in chanstats['fees'].items():
     chanstats['fees'][k] = np.array(v)
 
+# ~ exit()
 
 def plothists():
     chansizebins = np.array([0, 2e6, 5e6, 10e6, 17e6, 20e6])
