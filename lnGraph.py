@@ -37,6 +37,14 @@ class lnGraphBase:
             print('Fetching graph data from lnd')
             return cls.fromlnd(lndnode=ni)
 
+    @classmethod
+    def fromjson(cls, graphfile='describegraph.json'):
+        raise NotImplementedError
+
+    @classmethod
+    def fromlnd(cls, lndnode: NodeInterface=None, include_unannounced=False):
+        raise NotImplementedError
+
 class gRPCadapters:
     """Collection of useful gRPC to JSON conversions"""
 
@@ -229,8 +237,26 @@ class lnGraph(lnGraphBase, nx.Graph):
 
         return channels
 
+class lnGraphBaseIGraph(lnGraphBase, igraph.Graph):
+    @property
+    def nodes(self):
+        return self.vs
 
-class lnGraphV2(lnGraphBase, igraph.Graph):
+    @property
+    def channels(self):
+        return self.es
+
+    @property
+    def num_nodes(self):
+        return len(self.nodes)
+
+    @property
+    def num_channels(self):
+        # Divide by 2, each channel is represented by 2 directed edges
+        return len(self.channels)//2
+
+
+class lnGraphV2(lnGraphBaseIGraph):
 
     @staticmethod
     def _init_vars():
@@ -292,7 +318,6 @@ class lnGraphV2(lnGraphBase, igraph.Graph):
             init_vars['policies1'],'out',init_vars['edgeattrs'])
         cls._init_setflattenedpolicies(
             init_vars['policies2'],'in',init_vars['edgeattrs'])
-
 
     @classmethod
     def _init_setpolicies2(cls, init_vars):
@@ -412,14 +437,6 @@ class lnGraphV2(lnGraphBase, igraph.Graph):
         g.add_edges(I['edgeids2'], I['edgeattrs'])
         return g
 
-    @property
-    def nodes(self):
-        return self.vs
-
-    @property
-    def channels(self):
-        return self.es
-
     def simple(self):
         """
         Returns a copy without parallel edges,
@@ -469,7 +486,7 @@ class lnGraphV2(lnGraphBase, igraph.Graph):
 
         return s
 
-    def basic(self):
+    def simple_nopolicy(self):
         """Faster than .simple(), discards policy info"""
         combine_edges_method = {
             'capacity': 'sum',
@@ -485,6 +502,6 @@ if __name__ == '__main__':
     # ~ g = lnGraphV2.fromlnd(lndnode=NodeInterface.fromconfig())
     print(g.summary())
     # find() grabs the first match, for testing
-    n = g.vs.find(alias='Gridflare')
+    n = g.nodes.find(alias='Gridflare')
     print(n)
-    print(g.es.find(_from=n))
+    print(g.channels.find(_from=n))
