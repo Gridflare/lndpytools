@@ -258,7 +258,7 @@ class lnGraphBaseIGraph(lnGraphBase, igraph.Graph):
 
 class lnGraphV2(lnGraphBaseIGraph):
     @staticmethod
-    def _init_vars():
+    def _init_temp_structure():
         # temporary values used during initialization
         v = dict(
             nodeattrs = {a:[] for a in ['pub_key', 'last_update', 'alias', 'color', 'addresses']},
@@ -345,18 +345,19 @@ class lnGraphV2(lnGraphBaseIGraph):
                     data[k] = int(v)
             return data
 
-        I = cls._init_vars()
+        graph_elements = cls._init_temp_structure()
 
         for node in graphdata['nodes']:
             node = fixstr2int(node)
-            for k in I['nodeattrs'].keys():
-                I['nodeattrs'][k].append(node[k])
+            for k in graph_elements['nodeattrs'].keys():
+                graph_elements['nodeattrs'][k].append(node[k])
 
-        n = len(I['nodeattrs']['pub_key'])
-        I['nodeattrs']['capacity'] = [0]*n  # Increment while iterating channels
-        I['nodeattrs']['num_channels'] = [0]*n  # Increment while iterating channels
+        n = len(graph_elements['nodeattrs']['pub_key'])
+        graph_elements['nodeattrs']['capacity'] = [0]*n  # Increment while iterating channels
+        graph_elements['nodeattrs']['num_channels'] = [0]*n  # Increment while iterating channels
 
-        nodeindexmap = {k:i for i, k in enumerate(I['nodeattrs']['pub_key'])}
+        nodeindexmap = {k:i for i, k in
+            enumerate(graph_elements['nodeattrs']['pub_key'])}
 
         for edge in graphdata['edges']:
             edge = fixstr2int(edge)
@@ -364,24 +365,26 @@ class lnGraphV2(lnGraphBaseIGraph):
             n2pub = edge['node2_pub']
             cap = edge['capacity']
 
-            for k in I['edgeattrs'].keys():
-                I['edgeattrs'][k].append(edge[k])
+            for k in graph_elements['edgeattrs'].keys():
+                graph_elements['edgeattrs'][k].append(edge[k])
 
-            cls._init_record_channel(I, nodeindexmap, n1pub, n2pub, cap,
+            cls._init_record_channel(graph_elements, nodeindexmap,
+                                    n1pub, n2pub, cap,
                                     fixstr2int(edge['node1_policy']),
                                     fixstr2int(edge['node2_policy']),
                                     )
 
-        g.add_vertices(I['nodeattrs']['pub_key'], I['nodeattrs'])
+        g.add_vertices(graph_elements['nodeattrs']['pub_key'],
+                       graph_elements['nodeattrs'])
 
         # Using a directed graph, have to add edges twice because channels are bidirectionsl
-        cls._init_setpolicies1(I)
+        cls._init_setpolicies1(graph_elements)
 
-        g.add_edges(I['edgeids1'], I['edgeattrs'])
+        g.add_edges(graph_elements['edgeids1'], graph_elements['edgeattrs'])
 
-        cls._init_setpolicies2(I)
+        cls._init_setpolicies2(graph_elements)
 
-        g.add_edges(I['edgeids2'], I['edgeattrs'])
+        g.add_edges(graph_elements['edgeids2'], graph_elements['edgeattrs'])
         return g
 
     @classmethod
@@ -393,44 +396,47 @@ class lnGraphV2(lnGraphBaseIGraph):
 
         g = cls(directed=True)
 
-        I = cls._init_vars()
+        graph_elements = cls._init_temp_structure()
 
         for node in graphdata.nodes:
-            for k in I['nodeattrs'].keys():
+            for k in graph_elements['nodeattrs'].keys():
                 a = getattr(node, k)
                 if k == 'addresses':
                     a = gRPCadapters.addrs2dict(a)
-                I['nodeattrs'][k].append(a)
+                graph_elements['nodeattrs'][k].append(a)
 
-        n = len(I['nodeattrs']['pub_key']) # Number of nodes in graph
-        I['nodeattrs']['capacity'] = [0]*n  # Increment while iterating channels
-        I['nodeattrs']['num_channels'] = [0]*n  # Increment while iterating channels
+        n = len(graph_elements['nodeattrs']['pub_key']) # Number of nodes in graph
+        graph_elements['nodeattrs']['capacity'] = [0]*n  # Increment while iterating channels
+        graph_elements['nodeattrs']['num_channels'] = [0]*n  # Increment while iterating channels
 
-        nodeindexmap = {k:i for i, k in enumerate(I['nodeattrs']['pub_key'])}
+        nodeindexmap = {k:i for i, k in
+                        enumerate(graph_elements['nodeattrs']['pub_key'])}
 
         for edge in graphdata.edges:
             n1pub = edge.node1_pub
             n2pub = edge.node2_pub
             cap = int(edge.capacity)
 
-            for k in I['edgeattrs'].keys():
-                I['edgeattrs'][k].append(getattr(edge, k))
+            for k in graph_elements['edgeattrs'].keys():
+                graph_elements['edgeattrs'][k].append(getattr(edge, k))
 
-            cls._init_record_channel(I, nodeindexmap, n1pub,n2pub, cap,
+            cls._init_record_channel(graph_elements, nodeindexmap,
+                        n1pub,n2pub, cap,
                         gRPCadapters.nodepolicy2dict(edge.node1_policy),
                         gRPCadapters.nodepolicy2dict(edge.node2_policy),
                         )
 
-        g.add_vertices(I['nodeattrs']['pub_key'], I['nodeattrs'])
+        g.add_vertices(graph_elements['nodeattrs']['pub_key'],
+                       graph_elements['nodeattrs'])
 
         # Using a directed graph, have to add edges twice to keep track of policies
-        cls._init_setpolicies1(I)
+        cls._init_setpolicies1(graph_elements)
 
-        g.add_edges(I['edgeids1'], I['edgeattrs'])
+        g.add_edges(graph_elements['edgeids1'], graph_elements['edgeattrs'])
 
-        cls._init_setpolicies2(I)
+        cls._init_setpolicies2(graph_elements)
 
-        g.add_edges(I['edgeids2'], I['edgeattrs'])
+        g.add_edges(graph_elements['edgeids2'], graph_elements['edgeattrs'])
         return g
 
     def simple(self):
