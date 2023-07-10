@@ -2,9 +2,8 @@ import json
 import os
 import time
 
-import networkx as nx
-import igraph
-
+from networkx import Graph as nxGraph
+from igraph import Graph as igGraph
 from nodeinterface import NodeInterface
 
 
@@ -70,7 +69,7 @@ class gRPCadapters:
         )
 
 
-class lnGraph(lnGraphBase, nx.Graph):
+class lnGraph(lnGraphBase, nxGraph):
     """Methods for loading network data into networkx"""
 
     @classmethod
@@ -237,7 +236,7 @@ class lnGraph(lnGraphBase, nx.Graph):
 
         return channels
 
-class lnGraphBaseIGraph(lnGraphBase, igraph.Graph):
+class lnGraphBaseIGraph(lnGraphBase, igGraph):
     @property
     def nodes(self):
         return self.vs
@@ -340,9 +339,12 @@ class lnGraphV2(lnGraphBaseIGraph):
 
         def fixstr2int(data: dict):
             if data is None: return None
-            for k, v in data.items():
-                if k in intattrs:
-                    data[k] = int(v)
+
+            data_keys = data.keys()
+            for k in intattrs:
+                if k in data_keys:
+                    data[k] = int(data[k])
+
             return data
 
         graph_elements = cls._init_temp_structure()
