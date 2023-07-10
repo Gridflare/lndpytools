@@ -257,7 +257,6 @@ class lnGraphBaseIGraph(lnGraphBase, igraph.Graph):
 
 
 class lnGraphV2(lnGraphBaseIGraph):
-
     @staticmethod
     def _init_vars():
         # temporary values used during initialization
@@ -296,17 +295,14 @@ class lnGraphV2(lnGraphBaseIGraph):
 
     @staticmethod
     def _init_setflattenedpolicies(policies:list,direction:str,dest:dict):
-        pkeys = ['time_lock_delta', 'min_htlc', 'max_htlc_msat',
-                 'fee_base_msat', 'fee_rate_milli_msat',
-                 'disabled', 'last_update']
+        policy_keys = ['time_lock_delta', 'min_htlc', 'max_htlc_msat',
+                       'fee_base_msat', 'fee_rate_milli_msat',
+                       'disabled', 'last_update']
 
-        for k in pkeys:
-            dest[f'{k}_{direction}'] = []
-
-        for p in policies:
-            if p is None: p = {}
-            for k in pkeys:
-                dest[f'{k}_{direction}'].append(p.get(k, None))
+        for k in policy_keys:
+            dest[f'{k}_{direction}'] = [
+                None if p is None else p[k] for p in policies
+            ]
 
     @classmethod
     def _init_setpolicies1(cls, init_vars):
