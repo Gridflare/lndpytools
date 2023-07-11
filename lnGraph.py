@@ -460,6 +460,7 @@ class lnGraphV2(lnGraphBaseIGraph):
             'last_update': 'max',
             'local_pubkey': 'first',
             'remote_pubkey': 'first',
+            'channel_id': 'first',
         }
         for d in ['in','out']:
             policies = {
@@ -497,8 +498,20 @@ class lnGraphV2(lnGraphBaseIGraph):
             'last_update': 'max',
             'local_pubkey': 'first',
             'remote_pubkey': 'first',
+            'channel_id': 'first', # Keep, because useful as an index
         }
         return self.copy().simplify(combine_edges=combine_edges_method)
+
+    def simple_nopolicy_undirected(self):
+        """Faster than .simple(), discards policy info"""
+        combine_edges_method = {
+            'capacity': 'sum',
+            'last_update': 'max',
+            'channel_id': 'first',
+        }
+        g = self.copy()
+        g.to_undirected(mode='collapse', combine_edges=combine_edges_method)
+        return g
 
 if __name__ == '__main__':
     print('Loading graph')
