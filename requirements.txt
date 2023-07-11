@@ -3,7 +3,7 @@ pandas
 requests
 requests[socks]
 networkx
-python-igraph
+igraph
 matplotlib
 grpcio
 grpcio-tools
