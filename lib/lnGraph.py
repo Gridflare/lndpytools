@@ -4,7 +4,8 @@ import time
 
 from networkx import Graph as nxGraph
 from igraph import Graph as igGraph
-from nodeinterface import NodeInterface
+
+from lib.nodeinterface import NodeInterface
 
 
 class lnGraphBase:
