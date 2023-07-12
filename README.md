@@ -71,4 +71,4 @@ All scripts are based on `nodeinterface.py` or `lnGraph.py`.
 
 `NodeInterface` provides an introspective thin wrapper around the LND gRPC API. It tries to be faithful to the official docs while being much less verbose. Many calls are still unsupported, work in progress.
 
-`lnGraph` provides an interface for loading LN graph data from a JSON file or LND into NetworkX. For computationally intense centrality measures, the `fastcentrality` module can translate the graph into iGraph for improved performance.
+`lnGraph` provides an interface for loading LN graph data from a JSON file or LND into NetworkX or iGraph. For computationally intense centrality measures, the `fastcentrality` module can translate a NetworkX graph into iGraph for improved performance.
