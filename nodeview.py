@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 
-from lnGraph import lnGraphV2
+from lib.lnGraph import lnGraphV2
 
 median_payment = 200e3  # sat, Payment size for calculating routing costs
 # TODO: Should ignore channels smaller than (2x? 4-5x?) the above

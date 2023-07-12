@@ -12,7 +12,7 @@ import argparse
 
 import numpy as np
 
-from nodeinterface import NodeInterface
+from lib.nodeinterface import NodeInterface
 
 # Handle arguments
 parser = argparse.ArgumentParser(description='Set channel rate fees based on simple heuristics')

@@ -7,7 +7,7 @@ Fields that cannot be decoded are printed as is.
 
 import time
 
-from nodeinterface import NodeInterface
+from lib.nodeinterface import NodeInterface
 
 
 mynode = NodeInterface.fromconfig()

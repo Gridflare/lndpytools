@@ -8,9 +8,9 @@ from itertools import repeat
 import time
 from math import ceil
 
-from nodeinterface import NodeInterface
-from lnGraph import lnGraph
-import fastcentrality
+from lib.nodeinterface import NodeInterface
+from lib.lnGraph import lnGraph
+from lib import fastcentrality
 
 centralitycheckcount = 23
 youththresholdweeks = 6
@@ -91,7 +91,7 @@ def printcentralitydiffs(mynode, myneighbours):
 
     print('\nFetching graph for further analysis')
     # Get the graph in networkx format, for reusing tools
-    graph = lnGraph.fromlnd(lndnode=mynode)
+    graph = lnGraph.fromlnd(lndnode=mynode, include_unannounced=True)
     mynodekey = mynode.GetInfo().identity_pubkey
 
     print(f'Checking up to {centralitycheckcount} least used public channels for removal centrality impact')

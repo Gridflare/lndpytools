@@ -8,7 +8,7 @@ import sys
 import numpy as np
 import networkx as nx
 
-from lnGraph import lnGraph
+from lib.lnGraph import lnGraph
 
 if len(sys.argv) > 1 and len(sys.argv[1]) == 66:
     mynodekey = sys.argv[1]

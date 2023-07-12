@@ -34,11 +34,11 @@ import pandas as pd
 import numpy as np
 from scipy import stats
 
-from GraphFilter import GraphFilter
-from CandidateFilter import CandidateFilter
-from lnGraph import lnGraph
-from fastcentrality import *
-from bc_utils import *
+from lib.GraphFilter import GraphFilter
+from lib.CandidateFilter import CandidateFilter
+from lib.lnGraph import lnGraph
+from lib.fastcentrality import *
+from lib.bc_utils import *
 import time
 
 
@@ -241,7 +241,7 @@ def main():
     final_candidate_count = candidate_filters.getint('finalcandidatecount')
     final_candidates = select_by_1ml(candidates_by_farness, max_availability,
                                      final_candidate_count)
-    
+
     if len(final_candidates) == 0:
         print('No candidates found, is your graph stale?')
         print('If issue persists, delete describegraph.json and improvecentrality.conf')

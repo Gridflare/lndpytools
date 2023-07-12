@@ -10,7 +10,7 @@ import csv
 import traceback
 import argparse
 
-from nodeinterface import NodeInterface
+from lib.nodeinterface import NodeInterface
 
 mynode = NodeInterface.fromconfig()
 

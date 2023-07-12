@@ -12,7 +12,7 @@ import random
 import numpy as np
 import matplotlib.pyplot as plt
 
-from nodeinterface import NodeInterface
+from lib.nodeinterface import NodeInterface
 
 parser = argparse.ArgumentParser(description='Plot a diagram of recent forwards')
 parser.add_argument('--days', type=int, default=90,
