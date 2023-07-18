@@ -67,7 +67,7 @@ def get_farness_score(peer2add, myfarness, graphcopy, idx, mynodekey):
     return farnessscore
 
 
-def calculate_farness_scores(candidatekeys, graph, idx, mynodekey):
+def calculate_farness_scores(candidatekeys, graph, idx, mynodekey, nthreads=None):
 
     print('Running modified farness score calculations')
 
@@ -75,7 +75,7 @@ def calculate_farness_scores(candidatekeys, graph, idx, mynodekey):
     farnesscores = {}
     myfarness = 1 / closeness(graph, idx[mynodekey])
 
-    with ProcessPoolExecutor() as executor:
+    with ProcessPoolExecutor(max_workers=nthreads) as executor:
         scoreresults = executor.map(get_farness_score,
                                     candidatekeys,
                                     repeat(myfarness),
@@ -104,12 +104,12 @@ def get_new_centrality(peer2add, graphcopy, idx, mynodekey):
     return newbc
 
 
-def calculate_centrality_deltas(candidatekeys, graph, idx, mynodekey):
+def calculate_centrality_deltas(candidatekeys, graph, idx, mynodekey, nthreads=None):
 
     t = time.time()
     centralitydeltas = {}
 
-    with ProcessPoolExecutor() as executor:
+    with ProcessPoolExecutor(max_workers=nthreads) as executor:
         print('Starting baseline centrality computation')
         mycentralityfuture = executor.submit(betweenness, graph, idx[mynodekey])
 
@@ -211,8 +211,13 @@ def main():
     config = load_config(args.conffile)
     pub_key = config['Node']['pub_key']
 
+    nthreads = config['Other'].getint('threads', -1)
+    nthreads = None if nthreads <= 0 else nthreads
+
     graph_filters = config['GraphFilters']
-    graph = lnGraph.autoload(expirehours=False)
+    graph = lnGraph.autoload(expirehours=False,
+                             include_unannounced=graph_filters.getboolean(
+                                'includeunannounced', False))
 
     filtered_graph = GraphFilter(graph, pub_key, graph_filters).filtered_g
     fast_graph, idx = nx2ig(filtered_graph)
@@ -234,7 +239,9 @@ def main():
     channel_candidates = CandidateFilter(filtered_graph, candidate_filters).filtered_candidates
     print('First filtering pass found', len(channel_candidates), 'candidates for new channels')
 
-    farness_scores = calculate_farness_scores(channel_candidates, fast_graph, idx, pub_key)
+
+    farness_scores = calculate_farness_scores(
+        channel_candidates, fast_graph, idx, pub_key, nthreads=nthreads)
     candidates_by_farness = sorted(channel_candidates, key=lambda k: -farness_scores[k])
 
     max_availability = candidate_filters.getint('max1mlavailability')
@@ -248,7 +255,7 @@ def main():
         raise ValueError('No valid candidates')
 
     centrality_deltas, current_centrality = calculate_centrality_deltas(
-        final_candidates, fast_graph, idx, pub_key)
+        final_candidates, fast_graph, idx, pub_key, nthreads=nthreads)
     export_dict = print_results(centrality_deltas, current_centrality, filtered_graph, farness_scores, args.validate)
     save_recommendations(export_dict, config)
 

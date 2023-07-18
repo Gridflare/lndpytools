@@ -12,7 +12,7 @@ class lnGraphBase:
     """Holds common methods for the below classes"""
 
     @classmethod
-    def autoload(cls, expirehours=8):
+    def autoload(cls, expirehours=8, include_unannounced=False):
         """Intelligently load from a json file or node"""
 
         # Check for json, check age
@@ -35,7 +35,7 @@ class lnGraphBase:
 
             # else load from lnd
             print('Fetching graph data from lnd')
-            return cls.fromlnd(lndnode=ni)
+            return cls.fromlnd(lndnode=ni, include_unannounced=include_unannounced)
 
     @classmethod
     def fromjson(cls, graphfile='describegraph.json'):
@@ -511,6 +511,7 @@ class lnGraphV2(lnGraphBaseIGraph):
             'channel_id': 'first',
         }
         g = self.copy()
+        # TODO: This will double channel capacity!!
         g.to_undirected(mode='collapse', combine_edges=combine_edges_method)
         return g
 

@@ -10,9 +10,10 @@ def load_config(config_file='improvecentrality.conf'):
     if os.path.isfile(config_file):
         config = configparser.ConfigParser()
         config.read(config_file)
+
         return config
 
-    print('Config not found, will create', config_file)
+    print('Config not found, creating', config_file)
     config = configparser.ConfigParser()
     config['Node'] = {'pub_key': 'yournodepubkeyhere'}
     config['GraphFilters'] = {
@@ -21,6 +22,11 @@ def load_config(config_file='improvecentrality.conf'):
         # script performance and odds of good routes.
         # However lower values give numbers closer to reality
         'minrelevantchan': 500_000,
+
+        # Whether to include private channels
+        # Workaround for having used chantools dropchannelgraph
+        # Only has an effect when loading from lnd, not json
+        'includeunannounced': False,
     }
     config['CandidateFilters'] = {
         'minchancount': 8,
@@ -41,6 +47,10 @@ def load_config(config_file='improvecentrality.conf'):
     config['Other'] = {
         # Export results to this CSV file. Set to None or '' to disable
         'csvexportname': 'newchannels.csv',
+
+        # How many threads to use in parallel processing.
+        # Set this if having out of memory issues.
+        'threads': -1,
     }
 
     with open(config_file, 'w') as cf:
